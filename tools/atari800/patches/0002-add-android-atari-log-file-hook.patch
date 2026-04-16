@@ -1,0 +1,31 @@
+diff --git a/src/log.c b/src/log.c
+--- a/src/log.c
++++ b/src/log.c
+@@ -28,6 +28,7 @@
+ #include <string.h>
+ #ifdef ANDROID
+ #include <android/log.h>
++#include "atari_log_sink.h"
+ #endif
+ 
+ #include "log.h"
+@@ -66,6 +67,9 @@ void Log_print(const char *format, ...)
+ 	strcat(Log_buffer, buffer);
+ #else
+ 	PRINT(buffer);
++#ifdef ANDROID
++	AtariLogSink_Write(buffer);
++#endif
+ #endif
+ }
+ 
+@@ -74,6 +78,9 @@ void Log_flushlog(void)
+ #ifdef BUFFERED_LOG
+ 	if (*Log_buffer) {
+ 		PRINT(Log_buffer);
++#ifdef ANDROID
++		AtariLogSink_Write(Log_buffer);
++#endif
+ 		*Log_buffer = 0;
+ 	}
+ #endif

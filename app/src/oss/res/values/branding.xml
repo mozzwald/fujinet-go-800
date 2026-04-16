@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">FujiNet Go 800 OSS</string>
+    <string name="notification_title">FujiNet Go 800 OSS Emulation</string>
+    <string name="web_ui_title">FujiNet Go 800 OSS webUI</string>
+    <string name="about_title">About FujiNet Go 800 OSS</string>
+    <string name="about_body">FujiNet Go 800 OSS is the open source Atari FujiNet emulation experience for Android. FujiNet Go 800 OSS is powered by the atari800 emulator and FujiNet-PC. Visit the FujiNet project site for documentation, news, and community resources.</string>
+    <string name="about_site_button_label">Open https://fujinet.online</string>
+    <string name="power_audio_subtitle">Balance FujiNet Go 800 OSS audio against podcasts and other apps.</string>
+    <string name="power_pause_switch_subtitle">Pause the emulator when FujiNet Go 800 OSS loses foreground focus, then resume when you return.</string>
+</resources>

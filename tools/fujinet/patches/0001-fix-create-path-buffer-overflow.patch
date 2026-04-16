@@ -1,0 +1,38 @@
+diff --git a/lib/FileSystem/fnFsSD.cpp b/lib/FileSystem/fnFsSD.cpp
+--- a/lib/FileSystem/fnFsSD.cpp
++++ b/lib/FileSystem/fnFsSD.cpp
+@@ -463,7 +463,7 @@ bool FileSystemSDFAT::create_path(const char *path)
+ */
+ bool FileSystemSDFAT::create_path(const char *path)
+ {
+-    char segment[64];
++    char segment[MAX_PATHLEN];
+ 
+ #ifdef ESP_PLATFORM
+     const char *fullpath = path;
+@@ -491,13 +491,18 @@ bool FileSystemSDFAT::create_path(const char *path)
+ 
+         if(found)
+         {
+-            /* We copy the segment from the fullpath using a length of (end - fullpath) + 1
+-               This allows for the ending terminator but not for the trailing '/'
+-               If we're done (at the end of fullpath), we assume there's no  trailing '/' so the length
+-               is (end - fullpath) + 2
+-            */
+-            strlcpy(segment, fullpath, end - fullpath + (done ? 2 : 1));
+-            //Debug_printf("Checking/creating directory: \"%s\"\r\n", segment);
++            size_t segment_length = static_cast<size_t>(end - fullpath + (done ? 1 : 0));
++            if (segment_length + 1 > sizeof(segment))
++            {
++                Debug_printf("FAILED path too long: %s\r\n", fullpath);
++#ifndef ESP_PLATFORM
++                free(fullpath);
++#endif
++                return false;
++            }
++
++            memcpy(segment, fullpath, segment_length);
++            segment[segment_length] = '\0';
+ #ifdef ESP_PLATFORM
+             if ( !exists(segment) )
+             {
