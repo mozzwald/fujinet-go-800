@@ -14,6 +14,7 @@ class AtariKeyboardTest {
             .first { it.label == "⌫" }
 
         assertEquals("BRK", backspaceKey.displayLabel(fnEnabled = true, shiftEnabled = false))
+        assertEquals(0.82f, backspaceKey.displayFontScale(fnEnabled = true, shiftEnabled = false))
 
         val resolved = resolveKeyDispatch(
             key = backspaceKey,
@@ -29,6 +30,36 @@ class AtariKeyboardTest {
         )
         assertEquals(
             listOf(AtariKeyCode.AKEY_BREAK),
+            resolved.releaseMappings.mapNotNull { it.aKeyCode },
+        )
+        assertTrue(resolved.clearsFn)
+        assertFalse(resolved.clearsShift)
+        assertFalse(resolved.clearsCtrl)
+    }
+
+    @Test
+    fun fnEnterDisplaysClearAndDispatchesClearKey() {
+        val enterKey = keyboardRows()
+            .flatten()
+            .first { it.label == "↵" }
+
+        assertEquals("CLEAR", enterKey.displayLabel(fnEnabled = true, shiftEnabled = false))
+        assertEquals(0.72f, enterKey.displayFontScale(fnEnabled = true, shiftEnabled = false))
+
+        val resolved = resolveKeyDispatch(
+            key = enterKey,
+            fnEnabled = true,
+            shiftEnabled = false,
+            ctrlEnabled = false,
+            atariEnabled = false,
+        )
+
+        assertEquals(
+            listOf(AtariKeyCode.AKEY_CLEAR),
+            resolved.pressMappings.mapNotNull { it.aKeyCode },
+        )
+        assertEquals(
+            listOf(AtariKeyCode.AKEY_CLEAR),
             resolved.releaseMappings.mapNotNull { it.aKeyCode },
         )
         assertTrue(resolved.clearsFn)

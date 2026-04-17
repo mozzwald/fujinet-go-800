@@ -165,10 +165,14 @@ fun AtariKeyboard(
                                 fnEnabled = fnEnabled,
                                 shiftEnabled = shiftEnabled,
                             )
+                            val displayFontScale = key.displayFontScale(
+                                fnEnabled = fnEnabled,
+                                shiftEnabled = shiftEnabled,
+                            )
                             AtariKeyboardKey(
                                 label = displayLabel,
                                 modifier = Modifier.weight(key.weight),
-                                fontScale = key.fontScale,
+                                fontScale = displayFontScale,
                                 fontWeight = key.fontWeight,
                                 hapticsEnabled = hapticsEnabled,
                                 active = when (key.kind) {
@@ -613,8 +617,10 @@ internal data class KeyboardKeySpec(
     val supportsAtariModifier: Boolean = true,
     val shiftedLabel: String? = null,
     val shiftedMapping: AtariKeyMapping? = null,
+    val shiftedFontScale: Float? = null,
     val fnLabel: String? = null,
     val fnMapping: AtariKeyMapping? = null,
+    val fnFontScale: Float? = null,
 )
 
 internal data class ResolvedKeyboardDispatch(
@@ -634,6 +640,17 @@ internal fun KeyboardKeySpec.displayLabel(
         fnEnabled && fnLabel != null -> fnLabel
         !fnEnabled && shiftEnabled && shiftedLabel != null -> shiftedLabel
         else -> label
+    }
+}
+
+internal fun KeyboardKeySpec.displayFontScale(
+    fnEnabled: Boolean,
+    shiftEnabled: Boolean,
+): Float {
+    return when {
+        fnEnabled && fnLabel != null -> fnFontScale ?: fontScale
+        !fnEnabled && shiftEnabled && shiftedLabel != null -> shiftedFontScale ?: fontScale
+        else -> fontScale
     }
 }
 
@@ -693,7 +710,7 @@ private val controlRow = listOf(
     KeyboardKeySpec("B", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_b), supportsModifiers = true, fnLabel = ">", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_GREATER)),
     KeyboardKeySpec("N", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_n), supportsModifiers = true, fnLabel = "(", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_PARENLEFT)),
     KeyboardKeySpec("M", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_m), supportsModifiers = true, fnLabel = ")", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_PARENRIGHT)),
-    KeyboardKeySpec("⌫", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_BACKSPACE), weight = 1.28f, fontScale = 1.2f, fontWeight = FontWeight.Bold, supportsAtariModifier = false, fnLabel = "BRK", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_BREAK)),
+    KeyboardKeySpec("⌫", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_BACKSPACE), weight = 1.28f, fontScale = 1.2f, fontWeight = FontWeight.Bold, supportsAtariModifier = false, fnLabel = "BRK", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_BREAK), fnFontScale = 0.82f),
 )
 
 private val bottomRow = listOf(
@@ -702,5 +719,5 @@ private val bottomRow = listOf(
     KeyboardKeySpec(",", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_COMMA), weight = 0.92f, supportsModifiers = true, shiftedLabel = "<", shiftedMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_LESS), fnLabel = "#", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_HASH)),
     KeyboardKeySpec("▁", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_SPACE), weight = 3.26f, fontScale = 1.2f, fontWeight = FontWeight.Bold, supportsAtariModifier = false, fnLabel = "▁"),
     KeyboardKeySpec(".", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_FULLSTOP), weight = 0.92f, supportsModifiers = true, shiftedLabel = ">", shiftedMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_GREATER), fnLabel = "/", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_SLASH)),
-    KeyboardKeySpec("↵", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_RETURN), weight = 1.24f, fontScale = 1.52f, fontWeight = FontWeight.Bold, supportsAtariModifier = false, fnLabel = "↵"),
+    KeyboardKeySpec("↵", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_RETURN), weight = 1.24f, fontScale = 1.52f, fontWeight = FontWeight.Bold, supportsAtariModifier = false, fnLabel = "CLEAR", fnMapping = AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_CLEAR), fnFontScale = 0.72f),
 )
