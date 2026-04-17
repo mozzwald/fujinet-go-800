@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -186,6 +187,9 @@ fun EmulatorScreen(
     val compactPortraitControls = !isLandscape && configuration.screenHeightDp <= 760
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val inputPanelVisible = if (isLandscape) true else inputControlsState.isInputPanelVisible
+    val landscapeControlsFullscreenHidden = sessionState is SessionState.Running &&
+        isLandscape &&
+        inputControlsState.isLandscapeControlsFullscreenHidden
     val baseInputPanelHeight = if (compactPortraitControls) {
         (screenHeight * 0.43f).coerceIn(280.dp, 340.dp)
     } else if (isLandscape) {
@@ -195,13 +199,16 @@ fun EmulatorScreen(
     }
     val useLandscapeJoystickLayout = sessionState is SessionState.Running &&
         isLandscape &&
+        !landscapeControlsFullscreenHidden &&
         inputPanelVisible &&
         inputControlsState.controlMode == ControlMode.JOYSTICK
     val useInternalKeyboard = launchSettingsState.settings.keyboardInputMode == KeyboardInputMode.INTERNAL
     val landscapeKeyboardLayout = sessionState is SessionState.Running &&
         isLandscape &&
+        !landscapeControlsFullscreenHidden &&
         inputControlsState.isKeyboardVisible
-    val useLandscapeRuntimeChrome = useLandscapeJoystickLayout || landscapeKeyboardLayout
+    val useLandscapeRuntimeChrome =
+        useLandscapeJoystickLayout || landscapeKeyboardLayout || landscapeControlsFullscreenHidden
     val shouldReclaimViewportSpace = sessionState is SessionState.Running &&
         !isLandscape &&
         !uiState.settingsVisible
@@ -295,7 +302,9 @@ fun EmulatorScreen(
     } else {
         R.drawable.ic_keyboard
     }
-    val toggleInputDescription = if (inputControlsState.isKeyboardVisible) {
+    val toggleInputDescription = if (landscapeControlsFullscreenHidden) {
+        "Show on-screen controls"
+    } else if (inputControlsState.isKeyboardVisible) {
         "Switch to joystick input"
     } else {
         "Switch to keyboard input"
@@ -334,6 +343,10 @@ fun EmulatorScreen(
     }
     val toggleInputMode = inputControlsViewModel::toggleControlMode
     val toggleInputPanelVisibility = inputControlsViewModel::toggleInputPanelVisibility
+    val enterLandscapeControlsFullscreenHidden =
+        inputControlsViewModel::enterLandscapeControlsFullscreenHidden
+    val exitLandscapeControlsFullscreenHidden =
+        inputControlsViewModel::exitLandscapeControlsFullscreenHidden
     val portraitDrawerFunctionBarHeight = portraitFunctionBarContainerHeight(compactPortraitControls)
     val portraitDrawerFunctionBarBlockHeight = portraitDrawerFunctionBarHeight + StandardSectionSpacing
     val beginPortraitResize = {
@@ -668,6 +681,7 @@ fun EmulatorScreen(
                         onJoystickReleased = inputControlsViewModel::onJoystickReleased,
                         onFirePressed = inputControlsViewModel::onFirePressed,
                         onFireReleased = inputControlsViewModel::onFireReleased,
+                        onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
                         onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
                         onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
                         joystickInputStyle = inputControlsState.joystickInputStyle,
@@ -706,7 +720,7 @@ fun EmulatorScreen(
                         useInternalKeyboard = useInternalKeyboard,
                         onKeyPressed = inputControlsViewModel::onKeyPressed,
                         onKeyReleased = inputControlsViewModel::onKeyReleased,
-                        onToggleInputLongPress = toggleInputPanelVisibility,
+                        onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
                         keyboardResetTrigger = keyboardResetTrigger,
                         keyboardHapticsEnabled = inputControlsState.keyboardHapticsEnabled,
                         stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
@@ -725,6 +739,19 @@ fun EmulatorScreen(
                         onImeTextChanged = inputControlsViewModel::onImeTextChanged,
                         onImeEnterPressed = inputControlsViewModel::onImeEnterPressed,
                         keyboardPanelHeight = landscapeKeyboardPanelHeight,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
+                } else if (landscapeControlsFullscreenHidden) {
+                    LandscapeFullscreenSessionLayout(
+                        sessionRepository = sessionRepository,
+                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                        keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                        toggleInputIconResId = toggleInputIconResId,
+                        toggleInputDescription = toggleInputDescription,
+                        onRestoreControls = exitLandscapeControlsFullscreenHidden,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
@@ -1391,6 +1418,7 @@ private fun LandscapeJoystickSessionLayout(
     onJoystickReleased: () -> Unit,
     onFirePressed: () -> Unit,
     onFireReleased: () -> Unit,
+    onToggleInputLongPress: () -> Unit,
     onFunctionKeyPressed: (AtariKeyMapping) -> Unit,
     onFunctionKeyReleased: (AtariKeyMapping) -> Unit,
     joystickInputStyle: JoystickInputStyle,
@@ -1426,6 +1454,8 @@ private fun LandscapeJoystickSessionLayout(
                         contentDescription = toggleInputDescription,
                         modifier = Modifier.width(52.dp),
                         onClick = onToggleInputMode,
+                        onLongClick = onToggleInputLongPress,
+                        longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
                     )
                     CompactControlButton(
                         label = "",
@@ -1533,6 +1563,56 @@ private fun LandscapeJoystickSessionLayout(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LandscapeFullscreenSessionLayout(
+    sessionRepository: SessionRepository,
+    scaleMode: ScaleMode,
+    scanlinesEnabled: Boolean,
+    keepScreenOn: Boolean,
+    toggleInputIconResId: Int,
+    toggleInputDescription: String,
+    onRestoreControls: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val toggleButtonSize = 56.dp
+    val toggleBottomPadding = 16.dp
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val emulatorWidth = (maxHeight * EmulatorDisplayAspectRatio).coerceAtMost(maxWidth)
+        val leftGutterWidth = ((maxWidth - emulatorWidth) / 2).coerceAtLeast(0.dp)
+        val toggleStartPadding = ((leftGutterWidth - toggleButtonSize) / 2).coerceAtLeast(8.dp)
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(emulatorWidth)
+                    .fillMaxHeight(),
+            ) {
+                EmulatorRenderHost(
+                    sessionRepository = sessionRepository,
+                    scaleMode = scaleMode,
+                    scanlinesEnabled = scanlinesEnabled,
+                    keepScreenOn = keepScreenOn,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            ShellIconButton(
+                iconResId = toggleInputIconResId,
+                contentDescription = toggleInputDescription,
+                onClick = onRestoreControls,
+                onLongClick = onRestoreControls,
+                longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = toggleStartPadding, bottom = toggleBottomPadding)
+                    .testTag("toggle-input-button")
+                    .size(toggleButtonSize),
+                height = toggleButtonSize,
+            )
         }
     }
 }

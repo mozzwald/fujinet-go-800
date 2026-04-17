@@ -129,6 +129,27 @@ class InputControlsViewModelTest {
     }
 
     @Test
+    fun landscapeControlsFullscreenHiddenPersistsIndependentlyOfPortraitPanel() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLandscapeControlsFullscreenHidden)
+        assertTrue(viewModel.uiState.value.isInputPanelVisible)
+
+        viewModel.enterLandscapeControlsFullscreenHidden()
+        val hiddenSettings = settingsRepository.settings.first { it.landscapeControlsFullscreenHidden }
+        assertTrue(hiddenSettings.landscapeControlsFullscreenHidden)
+        assertTrue(hiddenSettings.inputPanelVisible)
+
+        viewModel.exitLandscapeControlsFullscreenHidden()
+        val restoredSettings = settingsRepository.settings.first { !it.landscapeControlsFullscreenHidden }
+        assertFalse(restoredSettings.landscapeControlsFullscreenHidden)
+        assertTrue(restoredSettings.inputPanelVisible)
+    }
+
+    @Test
     fun fireButtonDispatchesOnlyInJoystickMode() = runTest {
         val settingsRepository = createSettingsRepository(backgroundScope)
         val sessionRepository = FakeSessionRepository()

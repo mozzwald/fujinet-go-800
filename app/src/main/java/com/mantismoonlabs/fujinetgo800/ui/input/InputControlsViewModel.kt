@@ -28,6 +28,7 @@ data class InputControlsUiState(
     val controlModeLabel: String = "Keyboard",
     val isKeyboardVisible: Boolean = true,
     val isInputPanelVisible: Boolean = true,
+    val isLandscapeControlsFullscreenHidden: Boolean = false,
     val inputHideHintSeen: Boolean = false,
     val portraitInputPanelSizeFraction: Float = 1f,
     val joystickInputStyle: JoystickInputStyle = JoystickInputStyle.STICK_8_WAY,
@@ -82,6 +83,14 @@ class InputControlsViewModel(
     fun toggleInputPanelVisibility() {
         markInputHideHintSeen()
         setInputPanelVisible(!uiState.value.isInputPanelVisible)
+    }
+
+    fun enterLandscapeControlsFullscreenHidden() {
+        setLandscapeControlsFullscreenHidden(true)
+    }
+
+    fun exitLandscapeControlsFullscreenHidden() {
+        setLandscapeControlsFullscreenHidden(false)
     }
 
     fun markInputHideHintSeen() {
@@ -235,6 +244,7 @@ class InputControlsViewModel(
             controlModeLabel = controlMode.toLabel(),
             isKeyboardVisible = controlMode == ControlMode.KEYBOARD,
             isInputPanelVisible = inputPanelVisible,
+            isLandscapeControlsFullscreenHidden = landscapeControlsFullscreenHidden,
             inputHideHintSeen = inputHideHintSeen,
             portraitInputPanelSizeFraction = portraitInputPanelSizeFraction,
             joystickInputStyle = joystickInputStyle,
@@ -246,6 +256,12 @@ class InputControlsViewModel(
     private fun setInputPanelVisible(visible: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateInputPanelVisible(visible)
+        }
+    }
+
+    private fun setLandscapeControlsFullscreenHidden(hidden: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateLandscapeControlsFullscreenHidden(hidden)
         }
     }
 

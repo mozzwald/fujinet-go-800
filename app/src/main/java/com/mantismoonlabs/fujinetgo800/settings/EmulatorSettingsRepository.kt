@@ -42,6 +42,7 @@ internal object EmulatorSettingsPreferenceKeys {
     val hDevice4Path = stringPreferencesKey("h_device_4_path")
     val controlMode = stringPreferencesKey("control_mode")
     val inputPanelVisible = booleanPreferencesKey("input_panel_visible")
+    val landscapeControlsFullscreenHidden = booleanPreferencesKey("landscape_controls_fullscreen_hidden")
     val inputHideHintSeen = booleanPreferencesKey("input_hide_hint_seen_v2")
     val portraitInputPanelSizeFraction = floatPreferencesKey("portrait_input_panel_size_fraction")
     val keyboardInputMode = stringPreferencesKey("keyboard_input_mode")
@@ -189,6 +190,12 @@ class EmulatorSettingsRepository private constructor(
     suspend fun updateInputPanelVisible(visible: Boolean) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.inputPanelVisible] = visible
+        }
+    }
+
+    suspend fun updateLandscapeControlsFullscreenHidden(hidden: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.landscapeControlsFullscreenHidden] = hidden
         }
     }
 
@@ -397,6 +404,8 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
             defaultValue = ControlMode.KEYBOARD,
         ),
         inputPanelVisible = this[EmulatorSettingsPreferenceKeys.inputPanelVisible] ?: true,
+        landscapeControlsFullscreenHidden =
+            this[EmulatorSettingsPreferenceKeys.landscapeControlsFullscreenHidden] ?: false,
         inputHideHintSeen = this[EmulatorSettingsPreferenceKeys.inputHideHintSeen] ?: false,
         portraitInputPanelSizeFraction =
             (this[EmulatorSettingsPreferenceKeys.portraitInputPanelSizeFraction] ?: 1f).coerceIn(0f, 1f),

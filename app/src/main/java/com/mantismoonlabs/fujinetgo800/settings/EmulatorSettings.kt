@@ -122,6 +122,7 @@ data class EmulatorSettings(
     val hDevice4Path: String? = null,
     val controlMode: ControlMode = ControlMode.KEYBOARD,
     val inputPanelVisible: Boolean = true,
+    val landscapeControlsFullscreenHidden: Boolean = false,
     val inputHideHintSeen: Boolean = false,
     val portraitInputPanelSizeFraction: Float = 1f,
     val keyboardInputMode: KeyboardInputMode = KeyboardInputMode.INTERNAL,
