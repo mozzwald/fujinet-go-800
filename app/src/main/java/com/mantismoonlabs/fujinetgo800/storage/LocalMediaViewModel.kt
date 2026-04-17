@@ -1,5 +1,6 @@
 package com.mantismoonlabs.fujinetgo800.storage
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
@@ -12,7 +13,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
 
 class LocalMediaViewModel(
     private val runtimePaths: RuntimePaths,
@@ -110,11 +110,10 @@ class LocalMediaViewModel(
 
     companion object {
         fun provideFactory(
-            filesDirectory: File,
-            externalMediaDirectory: File? = null,
+            context: Context,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val runtimePaths = RuntimePaths.fromFilesDirectory(filesDirectory, externalMediaDirectory)
+                val runtimePaths = RuntimePaths.fromContext(context)
                 LocalMediaViewModel(
                     runtimePaths = runtimePaths,
                     documentStore = MediaDocumentStore(runtimePaths),

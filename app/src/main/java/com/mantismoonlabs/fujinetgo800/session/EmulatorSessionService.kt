@@ -50,7 +50,7 @@ class EmulatorSessionService : LifecycleService() {
     private val mutableState = MutableStateFlow<SessionState>(
         SessionState.ReadyToLaunch(launchMode = LaunchMode.FUJINET_ENABLED),
     )
-    private val runtimePaths by lazy { RuntimePaths.fromFilesDirectory(filesDir, getExternalMediaDirs().firstOrNull()) }
+    private val runtimePaths by lazy { RuntimePaths.fromContext(this) }
     private val mediaDocumentStore by lazy { MediaDocumentStore(runtimePaths) }
     private val mediaApplyUseCase by lazy {
         MediaApplyUseCase(

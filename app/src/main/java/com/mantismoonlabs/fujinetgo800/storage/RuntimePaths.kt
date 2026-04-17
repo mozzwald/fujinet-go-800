@@ -1,5 +1,6 @@
 package com.mantismoonlabs.fujinetgo800.storage
 
+import android.content.Context
 import com.mantismoonlabs.fujinetgo800.BuildConfig
 import java.io.File
 
@@ -7,6 +8,7 @@ class RuntimePaths(
     val rootDirectory: File,
     val fujiNetWritableRootDirectory: File = rootDirectory.resolve("fujinet"),
     val fujiNetLegacyRuntimeDirectory: File = rootDirectory.resolve("fujinet"),
+    val fujiNetLegacyRuntimeDirectories: List<File> = listOf(fujiNetLegacyRuntimeDirectory),
 ) {
     val importsDirectory: File = rootDirectory.resolve("imports")
     val disksDirectory: File = importsDirectory.resolve("disks")
@@ -69,19 +71,38 @@ class RuntimePaths(
     }
 
     companion object {
+        fun fromContext(context: Context): RuntimePaths {
+            @Suppress("DEPRECATION")
+            val legacyExternalMediaDirectory = context.getExternalMediaDirs().firstOrNull()
+            return fromFilesDirectory(
+                filesDirectory = context.filesDir,
+                externalFilesDirectory = context.getExternalFilesDir(null),
+                legacyExternalMediaDirectory = legacyExternalMediaDirectory,
+            )
+        }
+
         fun fromFilesDirectory(
             filesDirectory: File,
-            externalMediaDirectory: File? = null,
+            externalFilesDirectory: File? = null,
+            legacyExternalMediaDirectory: File? = null,
         ): RuntimePaths {
             val rootDirectory = filesDirectory.resolve("fujinetgo800")
             val legacyFujiNetDirectory = rootDirectory.resolve("fujinet")
-            val fujiNetDirectory = externalMediaDirectory
+            val fujiNetDirectory = externalFilesDirectory
                 ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
                 ?: legacyFujiNetDirectory
+            val legacyMigrationDirectories = buildList {
+                add(legacyFujiNetDirectory)
+                legacyExternalMediaDirectory
+                    ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
+                    ?.takeIf { it.absolutePath != fujiNetDirectory.absolutePath }
+                    ?.let(::add)
+            }.distinctBy { it.absolutePath }
             return RuntimePaths(
                 rootDirectory = rootDirectory,
                 fujiNetWritableRootDirectory = fujiNetDirectory,
                 fujiNetLegacyRuntimeDirectory = legacyFujiNetDirectory,
+                fujiNetLegacyRuntimeDirectories = legacyMigrationDirectories,
             )
         }
 

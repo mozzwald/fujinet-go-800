@@ -28,26 +28,39 @@ class RuntimePathsTest {
             runtimePaths.fujiNetLegacyRuntimeDirectory.absolutePath,
             runtimePaths.fujiNetRuntimeDirectory.absolutePath,
         )
+        assertEquals(
+            listOf(runtimePaths.fujiNetLegacyRuntimeDirectory.absolutePath),
+            runtimePaths.fujiNetLegacyRuntimeDirectories.map { it.absolutePath },
+        )
     }
 
     @Test
-    fun usesAppScopedExternalMediaForFujiNetWritableRuntimeWhenAvailable() {
+    fun usesAppScopedExternalFilesForFujiNetWritableRuntimeWhenAvailable() {
         val filesDirectory = temporaryFolder.newFolder("files")
-        val externalMediaDirectory = temporaryFolder.newFolder("external-media")
+        val externalFilesDirectory = temporaryFolder.newFolder("external-files")
+        val legacyExternalMediaDirectory = temporaryFolder.newFolder("external-media")
 
         val runtimePaths = RuntimePaths.fromFilesDirectory(
             filesDirectory = filesDirectory,
-            externalMediaDirectory = externalMediaDirectory,
+            externalFilesDirectory = externalFilesDirectory,
+            legacyExternalMediaDirectory = legacyExternalMediaDirectory,
         )
 
         assertEquals(
-            File(externalMediaDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
+            File(externalFilesDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
             runtimePaths.fujiNetRuntimeDirectory.absolutePath,
         )
         assertTrue(runtimePaths.fujiNetUsesVisibleStorage)
         assertEquals(
             File(filesDirectory, "fujinetgo800/fujinet").absolutePath,
             runtimePaths.fujiNetLegacyRuntimeDirectory.absolutePath,
+        )
+        assertEquals(
+            listOf(
+                File(filesDirectory, "fujinetgo800/fujinet").absolutePath,
+                File(legacyExternalMediaDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
+            ),
+            runtimePaths.fujiNetLegacyRuntimeDirectories.map { it.absolutePath },
         )
     }
 }

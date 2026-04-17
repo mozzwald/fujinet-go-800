@@ -67,16 +67,17 @@ class FujiNetRuntimeAssetInstaller(
     }
 
     private fun migrateLegacyRuntimeIfNeeded() {
-        val legacyRoot = runtimePaths.fujiNetLegacyRuntimeDirectory
         val liveRoot = runtimePaths.fujiNetRuntimeDirectory
-        if (legacyRoot.absolutePath == liveRoot.absolutePath || !legacyRoot.exists()) {
-            return
+        runtimePaths.fujiNetLegacyRuntimeDirectories.forEach { legacyRoot ->
+            if (legacyRoot.absolutePath == liveRoot.absolutePath || !legacyRoot.exists()) {
+                return@forEach
+            }
+            copyRecursivelyPreservingLiveFiles(
+                source = legacyRoot,
+                destination = liveRoot,
+            )
+            legacyRoot.deleteRecursively()
         }
-        copyRecursivelyPreservingLiveFiles(
-            source = legacyRoot,
-            destination = liveRoot,
-        )
-        legacyRoot.deleteRecursively()
     }
 
     private fun removeRetiredBundledAssets(previousManifest: Set<String>) {

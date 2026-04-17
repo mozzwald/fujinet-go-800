@@ -128,6 +128,35 @@ class InputControlsViewModelTest {
         assertTrue(persistedSettings.inputHideHintSeen)
     }
 
+    @Test
+    fun fireButtonDispatchesOnlyInJoystickMode() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        advanceUntilIdle()
+        viewModel.onFirePressed()
+        viewModel.onFireReleased()
+        advanceUntilIdle()
+
+        assertTrue(sessionRepository.commands.isEmpty())
+
+        settingsRepository.updateControlMode(ControlMode.JOYSTICK)
+        advanceUntilIdle()
+
+        viewModel.onFirePressed()
+        viewModel.onFireReleased()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = true),
+                SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
     private fun createSettingsRepository(scope: CoroutineScope): EmulatorSettingsRepository {
         val file = Files.createTempFile("input-controls", ".preferences_pb").toFile()
         return EmulatorSettingsRepository.createForTest(

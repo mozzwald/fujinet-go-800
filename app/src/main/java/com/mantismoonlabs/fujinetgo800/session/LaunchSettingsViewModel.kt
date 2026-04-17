@@ -797,7 +797,7 @@ fun FujiNetPrinterModel.toLabel(): String = label.ifBlank { value.ifBlank { "Def
 
 private fun RuntimePaths.toFujiNetStorageModeLabel(): String {
     return if (fujiNetUsesVisibleStorage) {
-        "Android/media storage"
+        "App-specific external storage"
     } else {
         "Private app storage fallback"
     }

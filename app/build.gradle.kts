@@ -111,6 +111,13 @@ android {
         }
     }
     productFlavors {
+        create("mantis") {
+            dimension = "branding"
+            applicationId = "com.mantismoonlabs.fujinetgo800"
+            buildConfigField("String", "BRAND_MEDIA_SELECTION_COMMENT", "\"Fuji800a media selections\"")
+            buildConfigField("String", "BRAND_SYSTEM_ROM_SELECTION_COMMENT", "\"Fuji800a system ROM selections\"")
+            buildConfigField("String", "BRAND_EXTERNAL_MEDIA_DIR_NAME", "\"FujiNet Go 800\"")
+        }
         create("oss") {
             dimension = "branding"
             applicationId = "org.fujinetwifi.fujinetgo800.oss"

@@ -173,6 +173,9 @@ class InputControlsViewModel(
     }
 
     fun onJoystickReleased() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
         joystickDispatcher.release()
     }
 
@@ -184,6 +187,9 @@ class InputControlsViewModel(
     }
 
     fun onFireReleased() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
         joystickDispatcher.releaseFire()
     }
 

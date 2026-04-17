@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
     private val hardwareKeyboardRouter = HardwareKeyboardRouter(AndroidAtariKeyMapper())
     private val gameControllerMapper = GameControllerMapper()
     private val runtimePaths by lazy {
-        RuntimePaths.fromFilesDirectory(filesDir, getExternalMediaDirs().firstOrNull())
+        RuntimePaths.fromContext(this)
     }
     private val fujiNetSettingsBridge by lazy {
         FujiNetSettingsBridge(runtimePaths)
@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
         emulatorSettingsRepository = EmulatorSettingsRepository(this)
         localMediaViewModel = ViewModelProvider(
             this,
-            LocalMediaViewModel.provideFactory(filesDir, getExternalMediaDirs().firstOrNull()),
+            LocalMediaViewModel.provideFactory(this),
         )[LocalMediaViewModel::class.java]
         observePickerRequests()
         observeHostDisplaySettings()

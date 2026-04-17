@@ -162,4 +162,40 @@ class FujiNetRuntimeAssetInstallerTest {
         assertEquals("visible-sd", runtimePaths.fujiNetSdDirectory.resolve("existing.txt").readText())
         assertEquals("<html>ok</html>", runtimePaths.fujiNetDataDirectory.resolve("www/index.html").readText())
     }
+
+    @Test
+    fun migratesLegacyExternalMediaRuntimeIntoExternalFilesStorage() {
+        val privateRoot = temporaryFolder.newFolder("private-root")
+        val visibleRoot = temporaryFolder.newFolder("visible-root")
+        val legacyExternalMediaRoot = temporaryFolder.newFolder("legacy-external-media")
+        val legacyExternalMediaRuntime = legacyExternalMediaRoot.resolve("fujinet")
+        val runtimePaths = RuntimePaths(
+            rootDirectory = privateRoot,
+            fujiNetWritableRootDirectory = visibleRoot,
+            fujiNetLegacyRuntimeDirectory = privateRoot.resolve("fujinet"),
+            fujiNetLegacyRuntimeDirectories = listOf(
+                privateRoot.resolve("fujinet"),
+                legacyExternalMediaRuntime,
+            ),
+        )
+        legacyExternalMediaRuntime.resolve("data").mkdirs()
+        legacyExternalMediaRuntime.resolve("SD").mkdirs()
+        legacyExternalMediaRuntime.resolve("fnconfig.ini").writeText("legacy-media=1\n")
+        legacyExternalMediaRuntime.resolve("SD/autorun.atr").writeText("legacy-atr")
+
+        val installer = FujiNetRuntimeAssetInstaller(
+            runtimePaths = runtimePaths,
+            version = "fujinet-v1",
+            bundledAssets = listOf(
+                FujiNetRuntimeAssetInstaller.BundledAsset("data/www/index.html", "<html>ok</html>".toByteArray()),
+            ),
+        )
+
+        installer.ensureInstalled()
+
+        assertFalse(legacyExternalMediaRuntime.exists())
+        assertEquals("legacy-media=1\n", runtimePaths.fujiNetConfigFile.readText())
+        assertEquals("legacy-atr", runtimePaths.fujiNetSdDirectory.resolve("autorun.atr").readText())
+        assertEquals("<html>ok</html>", runtimePaths.fujiNetDataDirectory.resolve("www/index.html").readText())
+    }
 }

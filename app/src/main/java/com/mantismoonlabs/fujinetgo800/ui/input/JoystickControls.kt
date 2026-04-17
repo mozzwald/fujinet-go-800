@@ -136,6 +136,7 @@ fun JoystickControls(
                             .size(fireControlSize),
                         onFirePressed = onFirePressed,
                         onFireReleased = onFireReleased,
+                        hapticsEnabled = hapticsEnabled,
                     )
                 }
                 if (footerContent != null) {
@@ -444,10 +445,12 @@ fun JoystickPadControl(
 fun FireButtonControl(
     onFirePressed: () -> Unit,
     onFireReleased: () -> Unit,
+    hapticsEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var controlSize by remember { mutableStateOf(IntSize.Zero) }
     var activePointerId by remember { mutableStateOf<Int?>(null) }
+    val emitFireHaptic = rememberFujiHaptic(FujiHapticPattern.KeyPress)
     val releaseFire = {
         activePointerId = null
         onFireReleased()
@@ -465,6 +468,9 @@ fun FireButtonControl(
                     MotionEvent.ACTION_POINTER_DOWN -> {
                         if (activePointerId == null) {
                             activePointerId = event.getPointerId(event.actionIndex)
+                            if (hapticsEnabled) {
+                                emitFireHaptic()
+                            }
                             onFirePressed()
                         }
                         true

@@ -154,10 +154,7 @@ fun EmulatorScreen(
         factory = LaunchSettingsViewModel.provideFactory(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
-            runtimePaths = RuntimePaths.fromFilesDirectory(
-                filesDirectory = context.filesDir,
-                externalMediaDirectory = context.getExternalMediaDirs().firstOrNull(),
-            ),
+            runtimePaths = RuntimePaths.fromContext(context),
         ),
     )
     val inputControlsViewModel: InputControlsViewModel = viewModel(
@@ -1525,6 +1522,7 @@ private fun LandscapeJoystickSessionLayout(
                             .aspectRatio(1f),
                         onFirePressed = onFirePressed,
                         onFireReleased = onFireReleased,
+                        hapticsEnabled = joystickHapticsEnabled,
                     )
                 }
                 AtariFunctionBar(
