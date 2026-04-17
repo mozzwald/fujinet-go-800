@@ -1,6 +1,7 @@
 package com.mantismoonlabs.fujinetgo800.ui
 
 import android.content.res.Configuration
+import android.os.Build
 import com.mantismoonlabs.fujinetgo800.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,6 +62,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -76,6 +79,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -173,10 +178,18 @@ fun EmulatorScreen(
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val view = LocalView.current
+    val isSamsungDevice = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
     val bottomNavigationInset = with(density) {
         (
             ViewCompat.getRootWindowInsets(view)
                 ?.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
+                ?.bottom ?: 0
+            ).toDp()
+    }
+    val visibleNavigationBarInset = with(density) {
+        (
+            ViewCompat.getRootWindowInsets(view)
+                ?.getInsets(WindowInsetsCompat.Type.navigationBars())
                 ?.bottom ?: 0
             ).toDp()
     }
@@ -185,6 +198,18 @@ fun EmulatorScreen(
     val contentWidth = (screenWidth - 16.dp).coerceAtLeast(0.dp)
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val compactPortraitControls = !isLandscape && configuration.screenHeightDp <= 760
+    var measuredKeyboardBottomGap by remember { mutableStateOf(0.dp) }
+    var measuredJoystickBottomGap by remember { mutableStateOf(0.dp) }
+    val samsungPortraitKeyboardBottomPadding = rememberCompensatedSamsungBottomPadding(
+        enabled = !isLandscape && isSamsungDevice,
+        visibleNavigationBarInset = visibleNavigationBarInset,
+        measuredBottomGap = measuredKeyboardBottomGap,
+    )
+    val samsungPortraitJoystickBottomPadding = rememberCompensatedSamsungBottomPadding(
+        enabled = !isLandscape && isSamsungDevice,
+        visibleNavigationBarInset = visibleNavigationBarInset,
+        measuredBottomGap = measuredJoystickBottomGap,
+    )
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val inputPanelVisible = if (isLandscape) true else inputControlsState.isInputPanelVisible
     val landscapeControlsFullscreenHidden = sessionState is SessionState.Running &&
@@ -937,7 +962,14 @@ fun EmulatorScreen(
                                                         ),
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .height(panelHeight),
+                                                        .height(panelHeight)
+                                                        .padding(bottom = samsungPortraitKeyboardBottomPadding)
+                                                        .measureBottomGapInWindow(
+                                                            rootViewHeightPx = view.height,
+                                                            density = density,
+                                                            appliedBottomPadding = samsungPortraitKeyboardBottomPadding,
+                                                            onGapMeasured = { measuredKeyboardBottomGap = it },
+                                                        ),
                                                 )
                                             }
                                         }
@@ -1039,7 +1071,14 @@ fun EmulatorScreen(
                                             JoystickControls(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(panelHeight),
+                                                    .height(panelHeight)
+                                                    .padding(bottom = samsungPortraitJoystickBottomPadding)
+                                                    .measureBottomGapInWindow(
+                                                        rootViewHeightPx = view.height,
+                                                        density = density,
+                                                        appliedBottomPadding = samsungPortraitJoystickBottomPadding,
+                                                        onGapMeasured = { measuredJoystickBottomGap = it },
+                                                    ),
                                                 onJoystickMoved = inputControlsViewModel::onJoystickMoved,
                                                 onJoystickReleased = inputControlsViewModel::onJoystickReleased,
                                                 onFirePressed = inputControlsViewModel::onFirePressed,
@@ -1103,6 +1142,35 @@ private fun PortraitResizableInputPanel(
                 content(contentHeight)
             }
         }
+    }
+}
+
+@Composable
+private fun rememberCompensatedSamsungBottomPadding(
+    enabled: Boolean,
+    visibleNavigationBarInset: Dp,
+    measuredBottomGap: Dp,
+): Dp {
+    if (!enabled || visibleNavigationBarInset <= 0.dp) {
+        return 0.dp
+    }
+    return (visibleNavigationBarInset - measuredBottomGap).coerceAtLeast(0.dp)
+}
+
+private fun Modifier.measureBottomGapInWindow(
+    rootViewHeightPx: Int,
+    density: Density,
+    appliedBottomPadding: Dp,
+    onGapMeasured: (Dp) -> Unit,
+): Modifier {
+    if (rootViewHeightPx <= 0) {
+        return this
+    }
+    return onGloballyPositioned { coordinates ->
+        val bounds = coordinates.boundsInWindow()
+        val measuredGapPx = (rootViewHeightPx.toFloat() - bounds.bottom).coerceAtLeast(0f)
+        val rawGapPx = with(density) { (measuredGapPx.toDp() - appliedBottomPadding).coerceAtLeast(0.dp).toPx() }
+        onGapMeasured(with(density) { rawGapPx.toDp() })
     }
 }
 

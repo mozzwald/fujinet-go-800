@@ -3,6 +3,11 @@
 * Support cloud-backed system ROM imports
 * Add BREAK key to Fn - Backspace
 * Add advanced NTSC filter controls
+* Fix missing haptic feedback for Fire button
+* Switch to newer files API and move existing storage to /Android/data/com.mantismoonlabs.fujinetgo800/files/
+* Add CLEAR key to Fn - ENTER
+* Add landscape only optional full screen mode if long press on input toggle button
+* Samsung specific nav bar calculation to prevent it from blocking input panel
 
 # 0.8
 

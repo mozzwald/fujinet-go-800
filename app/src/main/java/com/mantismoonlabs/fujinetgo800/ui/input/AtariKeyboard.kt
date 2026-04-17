@@ -141,6 +141,14 @@ fun AtariKeyboard(
             } else {
                 arrowClusterWidth
             }
+            val stackedArrowClusterHeight = (dynamicArrowButtonHeight * 2) + keyGap
+            val utilityRowHeightBudget = (
+                maxHeight -
+                    (outerVerticalPadding * 2) -
+                    (rowSpacing * 5) -
+                    (dynamicKeyHeight * 5)
+                ).coerceAtLeast(0.dp)
+            val useSingleRowArrows = stackedArrowClusterHeight > utilityRowHeightBudget
 
             Column(
                 modifier = Modifier
@@ -237,7 +245,7 @@ fun AtariKeyboard(
                     arrowClusterWidth = dynamicArrowClusterWidth,
                     upButtonWidth = upButtonWidth,
                     keyGap = keyGap,
-                    singleRowArrows = dense,
+                    singleRowArrows = useSingleRowArrows,
                 )
             }
         }
