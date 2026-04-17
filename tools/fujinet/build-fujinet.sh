@@ -12,7 +12,7 @@ GENERATED_JNI_ROOT="${PROJECT_ROOT}/app/src/main/jniLibs-generated"
 
 UPSTREAM_URL="https://github.com/mozzwald/fujinet-firmware"
 UPSTREAM_BRANCH="android"
-UPSTREAM_COMMIT="6d8d610f37e403dea8e8f88f8ab0fda0283a06eb"
+UPSTREAM_COMMIT="6d831d265508238fefe27b4459f3dde9bdec060b"
 ARCHIVE_PATH="${WORK_ROOT}/fujinet-firmware-${UPSTREAM_COMMIT}.tar.gz"
 
 MBEDTLS_URL="https://github.com/Mbed-TLS/mbedtls.git"
