@@ -2338,7 +2338,6 @@ private fun MachineSettingsTab(
 
 private val FujiNetHsioOptions = listOf(
     -1 to "Disabled",
-    0 to "0: 124Kb",
     1 to "1: 109Kb",
     2 to "2: 97Kb",
     3 to "3: 87Kb",

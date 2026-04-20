@@ -1,3 +1,8 @@
+# 0.10
+
+* Revert back to /Android/media/com.mantismoonlabs.fujinetgo800 for file storage due to Android permissions
+* Remove HSIO divisor 0 option from settings since it does not work
+
 # 0.9
 
 * Support cloud-backed system ROM imports

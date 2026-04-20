@@ -156,7 +156,6 @@ class FujiNetRuntimeAssetInstallerTest {
 
         installer.ensureInstalled()
 
-        assertFalse(runtimePaths.fujiNetLegacyRuntimeDirectory.exists())
         assertEquals("visible=1\n", runtimePaths.fujiNetConfigFile.readText())
         assertEquals("legacy-data", runtimePaths.fujiNetDataDirectory.resolve("history.txt").readText())
         assertEquals("visible-sd", runtimePaths.fujiNetSdDirectory.resolve("existing.txt").readText())
@@ -193,9 +192,51 @@ class FujiNetRuntimeAssetInstallerTest {
 
         installer.ensureInstalled()
 
-        assertFalse(legacyExternalMediaRuntime.exists())
         assertEquals("legacy-media=1\n", runtimePaths.fujiNetConfigFile.readText())
         assertEquals("legacy-atr", runtimePaths.fujiNetSdDirectory.resolve("autorun.atr").readText())
         assertEquals("<html>ok</html>", runtimePaths.fujiNetDataDirectory.resolve("www/index.html").readText())
+    }
+
+    @Test
+    fun migrationSkipsNestedRuntimeCloneLeftByBrokenVisibleStoragePath() {
+        val privateRoot = temporaryFolder.newFolder("private-root")
+        val visibleRoot = temporaryFolder.newFolder("visible-root")
+        val legacyVisibleRoot = temporaryFolder.newFolder("legacy-visible-root")
+        val nestedClone = legacyVisibleRoot.resolve(visibleRoot.name)
+
+        legacyVisibleRoot.resolve("data").mkdirs()
+        legacyVisibleRoot.resolve("SD").mkdirs()
+        legacyVisibleRoot.resolve("fnconfig.ini").writeText("legacy-visible=1\n")
+        legacyVisibleRoot.resolve("SD/autorun.atr").writeText("legacy-atr")
+
+        nestedClone.resolve("data").mkdirs()
+        nestedClone.resolve("SD").mkdirs()
+        nestedClone.resolve("fnconfig.ini").writeText("broken-nested=1\n")
+        nestedClone.resolve("SD/nested.atr").writeText("nested-atr")
+
+        val runtimePaths = RuntimePaths(
+            rootDirectory = privateRoot,
+            fujiNetWritableRootDirectory = visibleRoot,
+            fujiNetLegacyRuntimeDirectory = privateRoot.resolve("fujinet"),
+            fujiNetLegacyRuntimeDirectories = listOf(
+                privateRoot.resolve("fujinet"),
+                legacyVisibleRoot,
+            ),
+        )
+
+        val installer = FujiNetRuntimeAssetInstaller(
+            runtimePaths = runtimePaths,
+            version = "fujinet-v1",
+            bundledAssets = listOf(
+                FujiNetRuntimeAssetInstaller.BundledAsset("data/www/index.html", "<html>ok</html>".toByteArray()),
+            ),
+        )
+
+        installer.ensureInstalled()
+
+        assertFalse(runtimePaths.fujiNetRuntimeDirectory.resolve(runtimePaths.fujiNetRuntimeDirectory.name).exists())
+        assertEquals("legacy-visible=1\n", runtimePaths.fujiNetConfigFile.readText())
+        assertEquals("legacy-atr", runtimePaths.fujiNetSdDirectory.resolve("autorun.atr").readText())
+        assertFalse(runtimePaths.fujiNetSdDirectory.resolve("nested.atr").exists())
     }
 }

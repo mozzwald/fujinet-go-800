@@ -13,6 +13,18 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+fun readFujiNetRuntimeVersion(): String {
+    val versionHeader = rootProject.file("tools/fujinet/work/fujinet-firmware/include/version.h")
+    if (!versionHeader.isFile) {
+        return "fujinet-runtime-v1"
+    }
+    val match = Regex("""#define\s+FN_VERSION_FULL\s+"([^"]+)"""")
+        .find(versionHeader.readText())
+    return match?.groupValues?.get(1) ?: "fujinet-runtime-v1"
+}
+
+val fujiNetRuntimeVersion = readFujiNetRuntimeVersion()
+
 val prepareAtari800Source by tasks.registering(Exec::class) {
     group = "build setup"
     description = "Fetches and stages the pinned Atari800 upstream source tree."
@@ -80,8 +92,9 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9"
+        versionCode = 10
+        versionName = "0.10"
+        buildConfigField("String", "FUJINET_RUNTIME_VERSION", "\"${fujiNetRuntimeVersion}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

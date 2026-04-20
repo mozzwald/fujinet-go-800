@@ -72,11 +72,16 @@ class FujiNetRuntimeAssetInstaller(
             if (legacyRoot.absolutePath == liveRoot.absolutePath || !legacyRoot.exists()) {
                 return@forEach
             }
+            if (legacyRoot.isSameAsOrAncestorOf(liveRoot)) {
+                return@forEach
+            }
             copyRecursivelyPreservingLiveFiles(
                 source = legacyRoot,
                 destination = liveRoot,
             )
-            legacyRoot.deleteRecursively()
+            // Startup should not block on recursively deleting old visible-storage trees.
+            // Leave legacy directories in place after migration and only treat them as
+            // read-once sources for missing files.
         }
     }
 
@@ -98,7 +103,17 @@ class FujiNetRuntimeAssetInstaller(
         if (!source.exists()) {
             return
         }
-        source.walkTopDown().forEach { current ->
+        source.walkTopDown()
+            .onEnter { current ->
+                val relativePath = current.relativeTo(source).invariantSeparatorsPath
+                if (relativePath == ".") {
+                    return@onEnter true
+                }
+                // Older broken Android/media migrations could nest a clone of the runtime root
+                // inside itself. Skip that subtree instead of copying it forward again.
+                relativePath.substringBefore('/') != destination.name
+            }
+            .forEach { current ->
             val relativePath = current.relativeTo(source).invariantSeparatorsPath
             if (relativePath == ".") {
                 destination.mkdirs()
@@ -113,7 +128,14 @@ class FujiNetRuntimeAssetInstaller(
                 target.parentFile?.mkdirs()
                 current.copyTo(target)
             }
-        }
+            }
+    }
+
+    private fun File.isSameAsOrAncestorOf(other: File): Boolean {
+        val normalizedThis = normalize().absoluteFile
+        val normalizedOther = other.normalize().absoluteFile
+        return normalizedOther.path == normalizedThis.path ||
+            normalizedOther.path.startsWith(normalizedThis.path + File.separator)
     }
 
     private fun File.readVersion(): String? {

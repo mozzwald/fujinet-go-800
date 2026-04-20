@@ -61,6 +61,7 @@ class EmulatorSessionService : LifecycleService() {
     private val fujiNetRuntimeAssetInstaller by lazy {
         FujiNetRuntimeAssetInstaller(
             runtimePaths = runtimePaths,
+            version = BuildConfig.FUJINET_RUNTIME_VERSION,
             bundledAssets = loadFujiNetBundledAssets(),
         )
     }
@@ -222,17 +223,27 @@ class EmulatorSessionService : LifecycleService() {
     fun dispatch(command: SessionCommand) {
         when (command) {
             is SessionCommand.StartSession -> {
+                Log.i(
+                    LogTag,
+                    "dispatch StartSession launchMode=${command.config.settings.launchMode} startJobActive=${startJob?.isActive == true} state=${state.value::class.simpleName}",
+                )
                 if (startJob?.isActive == true) {
+                    Log.i(LogTag, "dispatch StartSession ignored because startup job is already active")
                     return
                 }
                 if (command.config.settings.launchMode == LaunchMode.FUJINET_ENABLED) {
                     startJob = lifecycleScope.launch {
+                        Log.i(LogTag, "dispatch StartSession entering FujiNet startup coroutine")
                         runCatching {
+                            Log.i(LogTag, "FujiNet startup about to ensure runtime is installed")
                             ensureFujiNetRuntimeInstalled()
+                            Log.i(LogTag, "FujiNet startup runtime install complete; invoking controller.startSession")
                             controller.startSession(command) { state ->
+                                Log.i(LogTag, "controller.startSession emitted intermediate state=${state::class.simpleName}")
                                 updateState(state)
                             }
                         }.onSuccess { state ->
+                            Log.i(LogTag, "dispatch StartSession completed successfully with state=${state::class.simpleName}")
                             syncSurfaceStateFromController()
                             if (state is SessionState.Running) {
                                 frameProducer.start()
@@ -242,6 +253,7 @@ class EmulatorSessionService : LifecycleService() {
                             }
                             updateState(state)
                         }.onFailure { error ->
+                            Log.e(LogTag, "dispatch StartSession failed during FujiNet startup", error)
                             frameProducer.stop()
                             updateState(
                                 SessionState.Failed(
@@ -255,6 +267,7 @@ class EmulatorSessionService : LifecycleService() {
                         }
                     }.also { job ->
                         job.invokeOnCompletion {
+                            Log.i(LogTag, "dispatch StartSession startup coroutine completed")
                             startJob = null
                         }
                     }
@@ -437,6 +450,7 @@ class EmulatorSessionService : LifecycleService() {
     }
 
     private fun ensureFujiNetRuntimeInstalled() {
+        Log.i(LogTag, "ensureFujiNetRuntimeInstalled entered")
         if (FujiNetServiceBridge.debugFailureModeForTesting() == FujiNetDebugFailureMode.ASSET_INIT_FAILURE) {
             throw FujiNetStartupException(
                 failureMode = FujiNetDebugFailureMode.ASSET_INIT_FAILURE,
@@ -444,8 +458,10 @@ class EmulatorSessionService : LifecycleService() {
             )
         }
         val assets = loadFujiNetBundledAssets()
+        Log.i(LogTag, "ensureFujiNetRuntimeInstalled loaded assets count=${assets.size}")
         check(assets.isNotEmpty()) { "Bundled FujiNet runtime assets are missing" }
         fujiNetRuntimeAssetInstaller.ensureInstalled()
+        Log.i(LogTag, "ensureFujiNetRuntimeInstalled ensureInstalled finished")
     }
 
     private fun loadFujiNetBundledAssets(): List<FujiNetRuntimeAssetInstaller.BundledAsset> {
@@ -647,10 +663,12 @@ internal class EmulatorSessionController(
 
         if (command.config.settings.launchMode == LaunchMode.FUJINET_ENABLED) {
             state = SessionState.StartingFujiNet(launchMode = command.config.settings.launchMode)
+            logInfo("Controller entering StartingFujiNet and calling runtime.ensureFujiNetReady()")
             onStateChanged(state)
             runCatching {
                 runtime.ensureFujiNetReady()
             }.onFailure { error ->
+                Log.e(LogTag, "Controller ensureFujiNetReady failed", error)
                 state = SessionState.Failed(
                     launchMode = LaunchMode.FUJINET_ENABLED,
                     reason = error.toFujiNetFailureReason(),
@@ -660,12 +678,15 @@ internal class EmulatorSessionController(
                 onStateChanged(state)
                 return state
             }
+            logInfo("Controller ensureFujiNetReady completed successfully")
         }
 
         state = SessionState.Starting(launchMode = command.config.settings.launchMode)
+        logInfo("Controller entering Starting and about to configure runtime/start native session")
         onStateChanged(state)
         configureRuntimeBeforeStart()
         runtime.startSession(command.config)
+        logInfo("Controller native runtime.startSession returned; publishing running state")
         state = publishRunningState(command.config, notifyFujiNet = true)
         onStateChanged(state)
         return state

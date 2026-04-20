@@ -88,11 +88,21 @@ class RuntimePaths(
         ): RuntimePaths {
             val rootDirectory = filesDirectory.resolve("fujinetgo800")
             val legacyFujiNetDirectory = rootDirectory.resolve("fujinet")
-            val fujiNetDirectory = externalFilesDirectory
+            val visibleExternalMediaDirectory = legacyExternalMediaDirectory
                 ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
+            val fujiNetDirectory = visibleExternalMediaDirectory
                 ?: legacyFujiNetDirectory
             val legacyMigrationDirectories = buildList {
                 add(legacyFujiNetDirectory)
+                externalFilesDirectory
+                    ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
+                    ?.takeIf { it.absolutePath != fujiNetDirectory.absolutePath }
+                    ?.let(::add)
+                legacyExternalMediaDirectory
+                    ?.resolve("files")
+                    ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
+                    ?.takeIf { it.absolutePath != fujiNetDirectory.absolutePath }
+                    ?.let(::add)
                 legacyExternalMediaDirectory
                     ?.resolve(BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME)
                     ?.takeIf { it.absolutePath != fujiNetDirectory.absolutePath }

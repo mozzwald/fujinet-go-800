@@ -35,7 +35,7 @@ class RuntimePathsTest {
     }
 
     @Test
-    fun usesAppScopedExternalFilesForFujiNetWritableRuntimeWhenAvailable() {
+    fun usesAndroidMediaRootForFujiNetWritableRuntimeWhenAvailable() {
         val filesDirectory = temporaryFolder.newFolder("files")
         val externalFilesDirectory = temporaryFolder.newFolder("external-files")
         val legacyExternalMediaDirectory = temporaryFolder.newFolder("external-media")
@@ -47,7 +47,7 @@ class RuntimePathsTest {
         )
 
         assertEquals(
-            File(externalFilesDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
+            File(legacyExternalMediaDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
             runtimePaths.fujiNetRuntimeDirectory.absolutePath,
         )
         assertTrue(runtimePaths.fujiNetUsesVisibleStorage)
@@ -58,7 +58,11 @@ class RuntimePathsTest {
         assertEquals(
             listOf(
                 File(filesDirectory, "fujinetgo800/fujinet").absolutePath,
-                File(legacyExternalMediaDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
+                File(externalFilesDirectory, BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME).absolutePath,
+                File(
+                    File(legacyExternalMediaDirectory, "files"),
+                    BuildConfig.BRAND_EXTERNAL_MEDIA_DIR_NAME,
+                ).absolutePath,
             ),
             runtimePaths.fujiNetLegacyRuntimeDirectories.map { it.absolutePath },
         )
