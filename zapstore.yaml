@@ -1,5 +1,4 @@
 repository: https://github.com/mozzwald/fujinet-go-800
-pubkey: npub1zudaq93x95m0t6d4nx0t8pxpyzlln4uxhp632pl2e6p8g0s5y5ts3ec2kh
 description: FujiNet Go is a portable Atari 8-bit emulator for Android with built-in FujiNet support, bringing modern networking to classic computing. Run your favorite Atari 800/XL/XE software while accessing network-hosted disk images, services, and multiplayer experiences just like real FujiNet hardware, but entirely in software. Designed for both casual players and retro enthusiasts, FujiNet Go combines accuracy with convenience. Take your Atari anywhere! No cables, no cartridges, no limits!
 summary: FujiNet Go 800 brings the classic Atari 8-bit computing experience to Android with built-in FujiNet support
 tags:
@@ -24,3 +23,4 @@ images:
     - screenshots/5.png
 metadata_sources:
     - github
+pubkey: npub1zudaq93x95m0t6d4nx0t8pxpyzlln4uxhp632pl2e6p8g0s5y5ts3ec2kh
