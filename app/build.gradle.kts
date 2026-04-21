@@ -25,6 +25,31 @@ fun readFujiNetRuntimeVersion(): String {
 
 val fujiNetRuntimeVersion = readFujiNetRuntimeVersion()
 
+fun readAtari800Version(): String {
+    val sourceScript = rootProject.file("tools/atari800/build-atari800-source.sh")
+    if (!sourceScript.isFile) {
+        return "Unknown"
+    }
+    val scriptText = sourceScript.readText()
+    val branch = Regex("""UPSTREAM_BRANCH="([^"]+)"""")
+        .find(scriptText)
+        ?.groupValues
+        ?.get(1)
+    val commit = Regex("""UPSTREAM_COMMIT="([^"]+)"""")
+        .find(scriptText)
+        ?.groupValues
+        ?.get(1)
+    val shortCommit = commit?.take(8)
+    return when {
+        !branch.isNullOrBlank() && !shortCommit.isNullOrBlank() -> "$branch ($shortCommit)"
+        !shortCommit.isNullOrBlank() -> shortCommit
+        !branch.isNullOrBlank() -> branch
+        else -> "Unknown"
+    }
+}
+
+val atari800Version = readAtari800Version()
+
 val prepareAtari800Source by tasks.registering(Exec::class) {
     group = "build setup"
     description = "Fetches and stages the pinned Atari800 upstream source tree."
@@ -92,8 +117,9 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.10"
+        versionCode = 11
+        versionName = "1.0"
+        buildConfigField("String", "ATARI800_VERSION", "\"${atari800Version}\"")
         buildConfigField("String", "FUJINET_RUNTIME_VERSION", "\"${fujiNetRuntimeVersion}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

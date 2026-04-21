@@ -1,3 +1,7 @@
+# 1.0
+
+* Update About page in settings menu
+
 # 0.10
 
 * Revert back to /Android/media/com.mantismoonlabs.fujinetgo800 for file storage due to Android permissions

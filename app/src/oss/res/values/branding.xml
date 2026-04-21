@@ -3,8 +3,14 @@
     <string name="notification_title">FujiNet Go 800 OSS Emulation</string>
     <string name="web_ui_title">FujiNet Go 800 OSS webUI</string>
     <string name="about_title">About FujiNet Go 800 OSS</string>
-    <string name="about_body">FujiNet Go 800 OSS is the open source Atari FujiNet emulation experience for Android. FujiNet Go 800 OSS is powered by the atari800 emulator and FujiNet-PC. Visit the FujiNet project site for documentation, news, and community resources.</string>
-    <string name="about_site_button_label">Open https://fujinet.online</string>
+    <string name="about_body">FujiNet Go 800 OSS is an open-source Atari 8-bit emulator for Android with built-in FujiNet support. Developed by mozzwald (Mantis Moon Labs) as an addition to the FujiNet project, it brings Atari800 emulation together with FujiNet networking in a portable, all-in-one experience.\n\nFujiNet Go 800 OSS is built on the Atari800 emulator and other open-source software. Special thanks to the Atari800 project and the broader retro computing community for helping keep the Atari platform alive.</string>
+    <string name="about_project_button_label">Project on GitHub</string>
+    <string name="about_site_button_label">Visit FujiNet Online</string>
+    <string name="about_versions_header">Versions</string>
+    <string name="about_version_app">App: %1$s</string>
+    <string name="about_version_fujinet">FujiNet: %1$s</string>
+    <string name="about_version_atari800">Atari800: %1$s</string>
+    <string name="about_version_unknown">Unknown</string>
     <string name="power_audio_subtitle">Balance FujiNet Go 800 OSS audio against podcasts and other apps.</string>
     <string name="power_pause_switch_subtitle">Pause the emulator when FujiNet Go 800 OSS loses foreground focus, then resume when you return.</string>
 </resources>

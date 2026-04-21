@@ -75,6 +75,21 @@ class ShellSettingsScreenTest {
         composeRule.onNodeWithText("Close Settings").performClick()
     }
 
+    @Test
+    fun aboutDialogShowsProjectLinksAndVersionSection() {
+        resetHostSettings()
+
+        openSettings()
+        composeRule.onNodeWithText("About").performClick()
+        composeRule.onNodeWithText("Project on GitHub").assertExists()
+        composeRule.onNodeWithText("Visit FujiNet Online").assertExists()
+        composeRule.onNodeWithText("Versions").assertExists()
+        composeRule.onNodeWithText("App:", substring = true).assertExists()
+        composeRule.onNodeWithText("FujiNet:", substring = true).assertExists()
+        composeRule.onNodeWithText("Atari800:", substring = true).assertExists()
+        composeRule.onNodeWithText("Close").performClick()
+    }
+
     private fun resetHostSettings() {
         runBlocking {
             settingsRepository().updateLaunchMode(LaunchMode.FUJINET_ENABLED)

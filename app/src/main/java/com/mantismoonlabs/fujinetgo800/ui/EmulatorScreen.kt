@@ -2,6 +2,8 @@ package com.mantismoonlabs.fujinetgo800.ui
 
 import android.content.res.Configuration
 import android.os.Build
+import androidx.core.content.pm.PackageInfoCompat
+import com.mantismoonlabs.fujinetgo800.BuildConfig
 import com.mantismoonlabs.fujinetgo800.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1919,7 +1921,16 @@ private fun FullScreenSettings(
     modifier: Modifier = Modifier,
 ) {
     var aboutVisible by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val unknownVersion = stringResource(R.string.about_version_unknown)
+    val appVersion = remember(context, unknownVersion) { resolveAppVersion(context, unknownVersion) }
+    val fujiNetVersion = remember(unknownVersion) {
+        BuildConfig.FUJINET_RUNTIME_VERSION.takeUnless { it.isBlank() } ?: unknownVersion
+    }
+    val atari800Version = remember(unknownVersion) {
+        BuildConfig.ATARI800_VERSION.takeUnless { it.isBlank() } ?: unknownVersion
+    }
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = modifier.fillMaxSize(),
@@ -2065,10 +2076,41 @@ private fun FullScreenSettings(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     FilledTonalButton(
+                        onClick = { uriHandler.openUri("https://github.com/mozzwald/fujinet-go-800") },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.about_project_button_label))
+                    }
+                    FilledTonalButton(
                         onClick = { uriHandler.openUri("https://fujinet.online") },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(stringResource(R.string.about_site_button_label))
+                    }
+                    HorizontalDivider()
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.about_versions_header),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        )
+                        Text(
+                            text = stringResource(R.string.about_version_app, appVersion),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(R.string.about_version_fujinet, fujiNetVersion),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(R.string.about_version_atari800, atari800Version),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     OutlinedButton(
                         onClick = { aboutVisible = false },
@@ -2080,6 +2122,23 @@ private fun FullScreenSettings(
             }
         }
     }
+}
+
+private fun resolveAppVersion(context: android.content.Context, fallback: String): String {
+    return runCatching {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.PackageInfoFlags.of(0),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }
+        packageInfo.versionName
+            ?.takeUnless { it.isBlank() }
+            ?: PackageInfoCompat.getLongVersionCode(packageInfo).toString()
+    }.getOrDefault(fallback)
 }
 
 @Composable
