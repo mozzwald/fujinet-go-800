@@ -1,6 +1,7 @@
 # 1.0
 
 * Update About page in settings menu
+* Fix bottom nav bar inset for Samsung phones in app settings
 
 # 0.10
 

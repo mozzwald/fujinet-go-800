@@ -212,6 +212,11 @@ fun EmulatorScreen(
         visibleNavigationBarInset = visibleNavigationBarInset,
         measuredBottomGap = measuredJoystickBottomGap,
     )
+    val samsungSettingsBottomPadding = if (!isLandscape && isSamsungDevice) {
+        visibleNavigationBarInset
+    } else {
+        0.dp
+    }
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val inputPanelVisible = if (isLandscape) true else inputControlsState.isInputPanelVisible
     val landscapeControlsFullscreenHidden = sessionState is SessionState.Running &&
@@ -538,6 +543,7 @@ fun EmulatorScreen(
                 },
                 onClearLocalMedia = onClearMediaSelection,
                 onCloseSettings = onCloseSettings,
+                footerBottomPadding = samsungSettingsBottomPadding,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -1918,6 +1924,7 @@ private fun FullScreenSettings(
     onPickLocalMedia: (MediaRole) -> Unit,
     onClearLocalMedia: (MediaRole) -> Unit,
     onCloseSettings: () -> Unit,
+    footerBottomPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     var aboutVisible by rememberSaveable { mutableStateOf(false) }
@@ -2043,7 +2050,9 @@ private fun FullScreenSettings(
 
             Button(
                 onClick = onCloseSettings,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = footerBottomPadding),
             ) {
                 Text(if (launchSettingsState.restartRequiredVisible) "Close & Restart" else "Close Settings")
             }
@@ -2058,11 +2067,14 @@ private fun FullScreenSettings(
                 tonalElevation = 8.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .widthIn(max = 560.dp)
+                    .padding(horizontal = 12.dp, vertical = 24.dp),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = 640.dp)
+                        .verticalScroll(rememberScrollState())
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
