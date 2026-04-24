@@ -63,6 +63,7 @@ internal object EmulatorSettingsPreferenceKeys {
     val xlxeRomPath = stringPreferencesKey("xlxe_rom_path")
     val basicRomPath = stringPreferencesKey("basic_rom_path")
     val atari400800RomPath = stringPreferencesKey("atari_400_800_rom_path")
+    val notificationPermissionEducationSeen = booleanPreferencesKey("notification_permission_education_seen")
 }
 
 class EmulatorSettingsRepository private constructor(
@@ -317,6 +318,18 @@ class EmulatorSettingsRepository private constructor(
                 preferences[EmulatorSettingsPreferenceKeys.atari400800RomPath] = path
             }
         }
+    }
+
+    suspend fun updateNotificationPermissionEducationSeen(seen: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.notificationPermissionEducationSeen] = seen
+        }
+    }
+
+    suspend fun notificationPermissionEducationSeen(): Boolean {
+        return dataStore.data.map { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.notificationPermissionEducationSeen] ?: false
+        }.first()
     }
 
     suspend fun currentSettings(): EmulatorSettings = settings.first()

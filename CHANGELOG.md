@@ -1,3 +1,7 @@
+# 1.0.1
+
+* Request Notification permissions with explanation on first run or if disabled
+
 # 1.0
 
 * Update About page in settings menu

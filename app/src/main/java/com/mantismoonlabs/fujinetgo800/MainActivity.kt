@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.OpenableColumns
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,11 +35,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.app.NotificationManagerCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.mantismoonlabs.fujinetgo800.notifications.NotificationStartupGateState
+import com.mantismoonlabs.fujinetgo800.notifications.determineNotificationStartupGateState
 import com.mantismoonlabs.fujinetgo800.input.GameControllerMapper
 import com.mantismoonlabs.fujinetgo800.input.HardwareKeyboardRouter
 import com.mantismoonlabs.fujinetgo800.input.AndroidAtariKeyMapper
@@ -58,6 +62,7 @@ import com.mantismoonlabs.fujinetgo800.storage.RuntimePaths
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomDocumentStore
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomSelection
 import com.mantismoonlabs.fujinetgo800.ui.EmulatorScreen
+import com.mantismoonlabs.fujinetgo800.ui.NotificationPermissionGateScreen
 import com.mantismoonlabs.fujinetgo800.ui.theme.Fuji800ATheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -70,7 +75,11 @@ class MainActivity : ComponentActivity() {
     private var emulationService: EmulatorSessionService? = null
     private var keyboardResetTrigger by mutableStateOf(0)
     private var isBound = false
+    private var serviceStartRequested = false
     private var shutdownInProgress = false
+    private var notificationGateState by mutableStateOf<NotificationStartupGateState>(
+        NotificationStartupGateState.Loading,
+    )
     private var pendingSystemRomKind: SystemRomKind? = null
     private var pendingHDeviceSlot: Int? = null
     private lateinit var localMediaViewModel: LocalMediaViewModel
@@ -111,8 +120,12 @@ class MainActivity : ComponentActivity() {
     }
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                sessionRepository?.refreshNotification()
+            lifecycleScope.launch {
+                emulatorSettingsRepository.updateNotificationPermissionEducationSeen(true)
+                refreshNotificationStartupState()
+                if (granted && notificationsReadyForForegroundService()) {
+                    sessionRepository?.refreshNotification()
+                }
             }
         }
 
@@ -125,13 +138,14 @@ class MainActivity : ComponentActivity() {
             sessionRepository = repository
             isBound = true
             repository.dispatch(SessionCommand.HostStarted)
-            if (canPostNotifications()) {
+            if (notificationsReadyForForegroundService()) {
                 repository.refreshNotification()
             }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
+            serviceStartRequested = false
             emulationService = null
             sessionRepository = null
         }
@@ -142,8 +156,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         allowContentInDisplayCutout()
-        ContextCompat.startForegroundService(this, Intent(this, EmulatorSessionService::class.java))
-        requestNotificationPermissionIfNeeded()
         emulatorSettingsRepository = EmulatorSettingsRepository(this)
         localMediaViewModel = ViewModelProvider(
             this,
@@ -155,32 +167,56 @@ class MainActivity : ComponentActivity() {
             Fuji800ATheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val repository = sessionRepository
-                    if (repository == null) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator()
+                    when {
+                        notificationGateState == NotificationStartupGateState.Loading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
-                    } else {
-                        EmulatorScreen(
-                            settingsRepository = emulatorSettingsRepository,
-                            sessionRepository = repository,
-                            localMediaViewModel = localMediaViewModel,
-                            keyboardResetTrigger = keyboardResetTrigger,
-                            onClearMediaSelection = ::clearMediaSelection,
-                            onPickSystemRom = ::pickSystemRom,
-                            onClearSystemRom = ::clearSystemRom,
-                            onOpenFujiNetWebUi = ::openFujiNetWebUi,
-                            onSwapFujiNetDisks = ::swapFujiNetDisks,
-                            onOpenFujiNetLogFile = ::openFujiNetLogFile,
-                            onPickHDevice = ::pickHDeviceDirectory,
-                            onClearHDevice = ::clearHDeviceDirectory,
-                            onShutdownRequested = ::shutdownEmulatorAndExit,
-                        )
+
+                        notificationGateState != NotificationStartupGateState.Ready -> {
+                            NotificationPermissionGateScreen(
+                                gateState = notificationGateState,
+                                onPrimaryAction = ::handleNotificationGatePrimaryAction,
+                                onOpenSettings = ::openAppNotificationSettings,
+                            )
+                        }
+
+                        repository == null -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+
+                        else -> {
+                            EmulatorScreen(
+                                settingsRepository = emulatorSettingsRepository,
+                                sessionRepository = repository,
+                                localMediaViewModel = localMediaViewModel,
+                                keyboardResetTrigger = keyboardResetTrigger,
+                                onClearMediaSelection = ::clearMediaSelection,
+                                onPickSystemRom = ::pickSystemRom,
+                                onClearSystemRom = ::clearSystemRom,
+                                onOpenFujiNetWebUi = ::openFujiNetWebUi,
+                                onSwapFujiNetDisks = ::swapFujiNetDisks,
+                                onOpenFujiNetLogFile = ::openFujiNetLogFile,
+                                onPickHDevice = ::pickHDeviceDirectory,
+                                onClearHDevice = ::clearHDeviceDirectory,
+                                onShutdownRequested = ::shutdownEmulatorAndExit,
+                            )
+                        }
                     }
                 }
             }
+        }
+        lifecycleScope.launch {
+            refreshNotificationStartupState()
         }
     }
 
@@ -196,12 +232,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (!isBound) {
-            bindService(
-                Intent(this, EmulatorSessionService::class.java),
-                serviceConnection,
-                Context.BIND_AUTO_CREATE,
-            )
+        if (notificationGateState == NotificationStartupGateState.Ready) {
+            ensureServiceStartedAndBound()
         }
     }
 
@@ -209,7 +241,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         keyboardResetTrigger++
         enterImmersiveMode()
-        requestNotificationPermissionIfNeeded()
+        lifecycleScope.launch {
+            refreshNotificationStartupState()
+        }
     }
 
     override fun onStop() {
@@ -308,19 +342,79 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return
+    private fun handleNotificationGatePrimaryAction() {
+        when (notificationGateState) {
+            NotificationStartupGateState.EducationRequired,
+            NotificationStartupGateState.PermissionRequired -> {
+                lifecycleScope.launch {
+                    emulatorSettingsRepository.updateNotificationPermissionEducationSeen(true)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        refreshNotificationStartupState()
+                    }
+                }
+            }
+
+            NotificationStartupGateState.AppNotificationsDisabled -> openAppNotificationSettings()
+            NotificationStartupGateState.Loading,
+            NotificationStartupGateState.Ready -> Unit
         }
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun canPostNotifications(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun areAppNotificationsEnabled(): Boolean {
+        return NotificationManagerCompat.from(this).areNotificationsEnabled()
+    }
+
+    private fun notificationsReadyForForegroundService(): Boolean {
+        return canPostNotifications() && areAppNotificationsEnabled()
+    }
+
+    private suspend fun refreshNotificationStartupState() {
+        val nextState = determineNotificationStartupGateState(
+            sdkInt = Build.VERSION.SDK_INT,
+            runtimePermissionGranted = canPostNotifications(),
+            appNotificationsEnabled = areAppNotificationsEnabled(),
+            educationSeen = emulatorSettingsRepository.notificationPermissionEducationSeen(),
+        )
+        notificationGateState = nextState
+        if (nextState == NotificationStartupGateState.Ready) {
+            ensureServiceStartedAndBound()
+        }
+    }
+
+    private fun ensureServiceStartedAndBound() {
+        if (!serviceStartRequested) {
+            ContextCompat.startForegroundService(this, Intent(this, EmulatorSessionService::class.java))
+            serviceStartRequested = true
+        }
+        if (!isBound) {
+            bindService(
+                Intent(this, EmulatorSessionService::class.java),
+                serviceConnection,
+                Context.BIND_AUTO_CREATE,
+            )
+        }
+    }
+
+    private fun openAppNotificationSettings() {
+        val notificationSettingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            putExtra("android.provider.extra.APP_PACKAGE", packageName)
+        }
+        val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        runCatching {
+            startActivity(notificationSettingsIntent)
+        }.getOrElse {
+            startActivity(appDetailsIntent)
+        }
     }
 
     private fun observePickerRequests() {

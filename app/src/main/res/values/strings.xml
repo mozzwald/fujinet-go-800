@@ -1,3 +1,12 @@
 <resources>
-    <!-- Branding strings are defined per flavor (src/oss) -->
+    <!-- Branding strings are defined per flavor. -->
+    <string name="notification_gate_title_first_run">Enable notifications to keep the emulator running</string>
+    <string name="notification_gate_title_permission_required">Notification permission is required</string>
+    <string name="notification_gate_title_settings_required">Notifications are turned off for this app</string>
+    <string name="notification_gate_message_permission_required">FujiNet Go 800 runs the emulator in a foreground service. Android can stop that service if the app is not allowed to post notifications.</string>
+    <string name="notification_gate_message_settings_disabled">Android is currently blocking all notifications for FujiNet Go 800. Turn them back on in system settings so the foreground emulator service can stay alive.</string>
+    <string name="notification_gate_detail">You only need a low-priority status notification while the emulator is active. It lets Android keep the runtime alive instead of sending the app back to the home screen.</string>
+    <string name="notification_gate_primary_allow">Allow notifications</string>
+    <string name="notification_gate_primary_open_settings">Open notification settings</string>
+    <string name="notification_gate_secondary_open_settings">Open system settings</string>
 </resources>
