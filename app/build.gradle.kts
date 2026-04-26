@@ -101,6 +101,7 @@ tasks.matching { task ->
 android {
     namespace = "com.mantismoonlabs.fujinetgo800"
     compileSdk = 36
+    ndkVersion = "30.0.14904198"
     flavorDimensions += "branding"
 
     signingConfigs {
@@ -117,7 +118,7 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
+        versionCode = 14
         versionName = "1.0.1"
         buildConfigField("String", "ATARI800_VERSION", "\"${atari800Version}\"")
         buildConfigField("String", "FUJINET_RUNTIME_VERSION", "\"${fujiNetRuntimeVersion}\"")
