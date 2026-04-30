@@ -9,13 +9,16 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.IBinder
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -204,6 +207,7 @@ class MainActivity : ComponentActivity() {
                                 onPickSystemRom = ::pickSystemRom,
                                 onClearSystemRom = ::clearSystemRom,
                                 onOpenFujiNetWebUi = ::openFujiNetWebUi,
+                                onOpenFujiNetRuntimeStorage = ::openFujiNetRuntimeStorage,
                                 onSwapFujiNetDisks = ::swapFujiNetDisks,
                                 onOpenFujiNetLogFile = ::openFujiNetLogFile,
                                 onPickHDevice = ::pickHDeviceDirectory,
@@ -439,6 +443,96 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:8000/")))
         }
     }
+
+    private fun openFujiNetRuntimeStorage() {
+        runtimePaths.ensureDirectories()
+        val sdDirectory = runtimePaths.fujiNetSdDirectory
+        val uri = sdDirectory.toExternalStorageDocumentUri()
+        Log.i(TAG, "Opening FujiNet SD card directory path=${sdDirectory.absolutePath} uri=$uri")
+        if (uri == null) {
+            openFujiNetRuntimeStoragePicker(initialUri = null)
+            return
+        }
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra("android.provider.extra.SHOW_ADVANCED", true)
+        }
+        runCatching {
+            startActivity(viewIntent)
+        }.getOrElse { error ->
+            Log.w(TAG, "Unable to browse FujiNet SD card directory", error)
+            openFujiNetRuntimeStoragePicker(initialUri = uri)
+        }
+    }
+
+    private fun openFujiNetRuntimeStoragePicker(initialUri: Uri?) {
+        runCatching {
+            val pickerIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                initialUri?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+                putExtra("android.provider.extra.SHOW_ADVANCED", true)
+            }
+            startActivity(pickerIntent)
+        }.getOrElse { error ->
+            Log.w(TAG, "Unable to open Android file manager", error)
+            Toast.makeText(this, "No file manager is available.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun File.toExternalStorageDocumentUri(): Uri? {
+        val target = canonicalFile
+        val (storageRoot, rootId) = externalStorageDocumentRoots()
+            .firstOrNull { (root, _) -> target.isSameOrDescendantOf(root) }
+            ?: return null
+        val relativePath = target.relativeTo(storageRoot.canonicalFile).invariantSeparatorsPath
+        val documentId = if (relativePath.isBlank()) {
+            rootId
+        } else {
+            "$rootId:$relativePath"
+        }
+        return DocumentsContract.buildDocumentUri(
+            ExternalStorageProviderAuthority,
+            documentId,
+        )
+    }
+
+    private fun externalStorageDocumentRoots(): List<Pair<File, String>> = buildList {
+        val primaryRoot = Environment.getExternalStorageDirectory().absoluteFile
+        add(primaryRoot to "primary")
+        @Suppress("DEPRECATION")
+        getExternalMediaDirs()
+            .mapNotNull { mediaDirectory ->
+                val storageRoot = mediaDirectory?.storageVolumeRoot() ?: return@mapNotNull null
+                val rootId = if (storageRoot.isSameFile(primaryRoot)) {
+                    "primary"
+                } else {
+                    storageRoot.name.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                }
+                storageRoot to rootId
+            }
+            .forEach(::add)
+    }.distinctBy { (root, _) -> root.canonicalFile.absolutePath }
+
+    private fun File.storageVolumeRoot(): File? {
+        var current = absoluteFile
+        var parent = current.parentFile
+        while (parent != null) {
+            if (current.name == "Android") {
+                return parent
+            }
+            current = parent
+            parent = current.parentFile
+        }
+        return null
+    }
+
+    private fun File.isSameOrDescendantOf(root: File): Boolean {
+        val targetPath = canonicalFile.absolutePath.trimEnd(File.separatorChar)
+        val rootPath = root.canonicalFile.absolutePath.trimEnd(File.separatorChar)
+        return targetPath == rootPath || targetPath.startsWith("$rootPath${File.separator}")
+    }
+
+    private fun File.isSameFile(other: File): Boolean = canonicalFile.absolutePath == other.canonicalFile.absolutePath
 
     private fun openFujiNetLogFile(path: String) {
         val file = File(path)
@@ -685,5 +779,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val ExternalStorageProviderAuthority = "com.android.externalstorage.documents"
     }
 }

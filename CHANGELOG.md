@@ -4,6 +4,7 @@
 * Change Fn key legend to SYM
 * Change SHIFT and SYM layout to be more Atari friendly
 * Add SHIFT/CTRL BACKSPACE for DELETE Line and DELETE
+* Add Open SD Card Folder button in FujiNet Settings
 
 # 1.0.1
 

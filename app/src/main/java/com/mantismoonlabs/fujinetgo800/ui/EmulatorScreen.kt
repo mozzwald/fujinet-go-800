@@ -145,6 +145,7 @@ fun EmulatorScreen(
     onPickSystemRom: (SystemRomKind) -> Unit,
     onClearSystemRom: (SystemRomKind) -> Unit,
     onOpenFujiNetWebUi: () -> Unit = {},
+    onOpenFujiNetRuntimeStorage: () -> Unit = {},
     onSwapFujiNetDisks: () -> Unit = {},
     onOpenFujiNetLogFile: (String) -> Unit = {},
     onPickHDevice: (Int) -> Unit = {},
@@ -518,6 +519,7 @@ fun EmulatorScreen(
                     launchSettingsViewModel.onLaunchModeSelected(LaunchMode.FUJINET_ENABLED)
                 },
                 onOpenFujiNetWebUi = onOpenFujiNetWebUi,
+                onOpenFujiNetRuntimeStorage = onOpenFujiNetRuntimeStorage,
                 onOpenFujiNetLogFile = onOpenFujiNetLogFile,
                 onRefreshFujiNetLog = launchSettingsViewModel::refreshFujiNetLog,
                 onFujiNetPrinterEnabledChanged = launchSettingsViewModel::onFujiNetPrinterEnabledChanged,
@@ -1906,6 +1908,7 @@ private fun FullScreenSettings(
     onVideoStandardSelected: (VideoStandard) -> Unit,
     onUseFujiNet: () -> Unit,
     onOpenFujiNetWebUi: () -> Unit,
+    onOpenFujiNetRuntimeStorage: () -> Unit,
     onOpenFujiNetLogFile: (String) -> Unit,
     onRefreshFujiNetLog: () -> Unit,
     onFujiNetPrinterEnabledChanged: (Boolean) -> Unit,
@@ -2011,6 +2014,7 @@ private fun FullScreenSettings(
                     SettingsTab.FUJINET -> FujiNetSettingsTab(
                         state = launchSettingsState,
                         onOpenWebUi = onOpenFujiNetWebUi,
+                        onOpenRuntimeStorage = onOpenFujiNetRuntimeStorage,
                         onOpenLogFile = { onOpenFujiNetLogFile(launchSettingsState.fujiNetConsoleLogPathLabel) },
                         onRefreshLog = onRefreshFujiNetLog,
                         onPrinterEnabledChanged = onFujiNetPrinterEnabledChanged,
@@ -2426,6 +2430,7 @@ private val FujiNetHsioOptions = listOf(
 private fun FujiNetSettingsTab(
     state: LaunchSettingsUiState,
     onOpenWebUi: () -> Unit,
+    onOpenRuntimeStorage: () -> Unit,
     onOpenLogFile: () -> Unit,
     onRefreshLog: () -> Unit,
     onPrinterEnabledChanged: (Boolean) -> Unit,
@@ -2443,12 +2448,18 @@ private fun FujiNetSettingsTab(
         subtitle = "Native controls for the common FujiNet options. Use the webUI for everything else.",
     ) {
         SettingsGroup {
-            SettingsValueRow(
-                title = "Runtime storage",
-                subtitle = fujiNet.runtimeStoragePath,
-            )
             FilledTonalButton(onClick = onOpenWebUi, modifier = Modifier.fillMaxWidth()) {
                 Text("Open FujiNet webUI")
+            }
+        }
+        SettingsGroup {
+            SettingsValueRow(
+                title = "Runtime storage",
+                value = "SD card folder",
+                subtitle = "FujiNet's SD card files live in the SD folder inside runtime storage.\n${fujiNet.runtimeStoragePath}",
+            )
+            FilledTonalButton(onClick = onOpenRuntimeStorage, modifier = Modifier.fillMaxWidth()) {
+                Text("Open SD Card Folder")
             }
             fujiNet.loadError?.takeIf { it.isNotBlank() }?.let { message ->
                 SettingsNotice(text = "FujiNet webUI is not reachable. Showing file-backed values where possible. $message")
