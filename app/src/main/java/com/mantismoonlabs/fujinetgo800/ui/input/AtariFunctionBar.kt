@@ -41,7 +41,7 @@ fun AtariFunctionBar(
     val buttonHeight = if (compact) 36.dp else 42.dp
     Surface(
         tonalElevation = 3.dp,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = modifier,
     ) {

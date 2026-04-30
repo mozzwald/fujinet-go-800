@@ -68,7 +68,7 @@ class AndroidAtariKeyMapper {
             '(' -> AtariKeyCode.AKEY_PARENLEFT
             ')' -> AtariKeyCode.AKEY_PARENRIGHT
             '|' -> AtariKeyCode.AKEY_BAR
-            '^' -> AtariKeyCode.AKEY_CARET
+            '^' -> AtariKeyCode.AKEY_CIRCUMFLEX
             else -> return null
         }
         return AtariKeyMapping(aKeyCode = aKeyCode)

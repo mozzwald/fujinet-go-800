@@ -1,3 +1,10 @@
+# 1.?
+
+* Add inverse key and show inverse legends when active
+* Change Fn key legend to SYM
+* Change SHIFT and SYM layout to be more Atari friendly
+* Add SHIFT/CTRL BACKSPACE for DELETE Line and DELETE
+
 # 1.0.1
 
 * Request Notification permissions with explanation on first run or if disabled

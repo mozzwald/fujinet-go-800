@@ -58,6 +58,7 @@ object AtariKeyCode {
     const val AKEY_DOWN = 0x8f
     const val AKEY_LEFT = 0x86
     const val AKEY_DELETE_CHAR = 0xb4
+    const val AKEY_DELETE_LINE = 0x74
     const val AKEY_INSERT_CHAR = 0xb7
     const val AKEY_CLEAR = AKEY_SHFT or 0x36
     const val AKEY_MINUS = 0x0e
@@ -70,6 +71,7 @@ object AtariKeyCode {
     const val AKEY_BRACKETLEFT = 0x60
     const val AKEY_BRACKETRIGHT = 0x62
     const val AKEY_BACKSLASH = 0x46
+    const val AKEY_CIRCUMFLEX = 0x47
     const val AKEY_PLUS = 0x06
     const val AKEY_ASTERISK = 0x07
     const val AKEY_QUESTION = 0x66
