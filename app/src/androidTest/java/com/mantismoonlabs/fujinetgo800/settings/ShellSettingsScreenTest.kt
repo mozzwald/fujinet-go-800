@@ -39,7 +39,7 @@ class ShellSettingsScreenTest {
         composeRule.onNodeWithTag("settings-tab-app").assertExists()
         composeRule.onNodeWithTag("settings-tab-app").performClick()
         composeRule.onNodeWithText("Display settings").assertExists()
-        composeRule.onNodeWithText("Scale mode").assertExists()
+        composeRule.onNodeWithText("Scale mode").assertDoesNotExist()
         composeRule.onNodeWithText("Rotate screen").assertExists()
         composeRule.onNodeWithText("Keyboard haptics").assertExists()
         composeRule.onNodeWithText("Power").assertExists()
@@ -93,7 +93,6 @@ class ShellSettingsScreenTest {
     private fun resetHostSettings() {
         runBlocking {
             settingsRepository().updateLaunchMode(LaunchMode.FUJINET_ENABLED)
-            settingsRepository().updateScaleMode(ScaleMode.FIT)
             settingsRepository().updateKeepScreenOn(true)
             settingsRepository().updateOrientationMode(OrientationMode.FOLLOW_SYSTEM)
         }

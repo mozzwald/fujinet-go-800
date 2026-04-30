@@ -264,7 +264,7 @@ fun EmulatorScreen(
     } else {
         0.dp
     }
-    val portraitMaxInputPanelHeight = if (
+    val portraitLayoutAvailableHeight = if (
         sessionState is SessionState.Running &&
         !isLandscape &&
         !uiState.settingsVisible
@@ -274,8 +274,7 @@ fun EmulatorScreen(
                 ScreenVerticalPadding -
                 topControlsHeight -
                 portraitFunctionBarHeight -
-                PortraitControlsVerticalSpacing -
-                emulatorViewportHeight
+                PortraitControlsVerticalSpacing
             ).coerceAtLeast(0.dp)
     } else {
         0.dp
@@ -290,18 +289,21 @@ fun EmulatorScreen(
     } else {
         0f
     }
-    val portraitInputPanelMetrics = if (
+    val portraitRuntimeLayoutMetrics = if (
         sessionState is SessionState.Running &&
         !isLandscape &&
         !uiState.settingsVisible
     ) {
-        calculatePortraitInputPanelMetrics(
-            maxAvailableHeight = portraitMaxInputPanelHeight,
+        calculatePortraitRuntimeLayoutMetrics(
+            layoutAvailableHeight = portraitLayoutAvailableHeight,
+            contentWidth = contentWidth,
+            fullWidthEmulatorHeight = emulatorViewportHeight,
             sizeFraction = activePortraitInputPanelFraction,
         )
     } else {
         null
     }
+    val portraitInputPanelMetrics = portraitRuntimeLayoutMetrics?.inputPanelMetrics
     val landscapeKeyboardPanelHeight = maxOf(
         baseInputPanelHeight,
         internalKeyboardContainerHeight(
@@ -319,7 +321,7 @@ fun EmulatorScreen(
         0.dp
     }
     val portraitAvailableEmulatorContainerHeight = if (shouldReclaimViewportSpace) {
-        (
+        portraitRuntimeLayoutMetrics?.emulatorContainerHeight ?: (
             screenHeight -
                 ScreenVerticalPadding -
                 topControlsHeight -
@@ -397,11 +399,13 @@ fun EmulatorScreen(
             } else {
                 portraitResizeAccumulatedDragPx += dragAmountPx
                 val startFraction = portraitResizeGestureStartFraction ?: metrics.fraction
-                val startHeightPx = minHeightPx + ((maxHeightPx - minHeightPx) * startFraction)
+                val startHeightPx = with(density) {
+                    metrics.totalHeightForFraction(startFraction).toPx()
+                }
                 val nextHeightPx = (startHeightPx - portraitResizeAccumulatedDragPx)
                     .coerceIn(minHeightPx, maxHeightPx)
-                portraitResizeFractionOverride = ((nextHeightPx - minHeightPx) / (maxHeightPx - minHeightPx))
-                    .coerceIn(0f, 1f)
+                val nextHeight = with(density) { nextHeightPx.toDp() }
+                portraitResizeFractionOverride = metrics.fractionForTotalHeight(nextHeight)
             }
         }
     }
@@ -411,10 +415,10 @@ fun EmulatorScreen(
                 portraitResizeFractionOverride = 0f
                 inputControlsViewModel.hideInputPanel()
             } else {
-                val committedFraction = if (fraction >= PortraitInputDrawerExpandSnapFraction) {
-                    1f
-                } else {
-                    fraction
+                val committedFraction = when {
+                    fraction >= PortraitInputDrawerExpandedSnapFraction -> 2f
+                    kotlin.math.abs(fraction - 1f) <= PortraitInputDrawerDefaultSnapDistance -> 1f
+                    else -> fraction
                 }
                 portraitResizeFractionOverride = committedFraction
                 inputControlsViewModel.showInputPanel()
@@ -485,7 +489,6 @@ fun EmulatorScreen(
                 currentLaunchModeLabel = sessionState.toLaunchModeLabel(),
                 showFujiNetSection = sessionState !is SessionState.ReadyToLaunch,
                 onSettingsTabSelected = launchSettingsViewModel::onSettingsTabSelected,
-                onScaleModeSelected = launchSettingsViewModel::onScaleModeSelected,
                 onEmulatorVolumeChanged = launchSettingsViewModel::onEmulatorVolumePreviewChanged,
                 onEmulatorVolumeChangeFinished = launchSettingsViewModel::onEmulatorVolumeChangeFinished,
                 onKeepScreenOnChanged = launchSettingsViewModel::onKeepScreenOnChanged,
@@ -690,7 +693,7 @@ fun EmulatorScreen(
                 if (useLandscapeJoystickLayout) {
                     LandscapeJoystickSessionLayout(
                         sessionRepository = sessionRepository,
-                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scaleMode = ScaleMode.FIT,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
                         screenWidth = screenWidth,
@@ -728,7 +731,7 @@ fun EmulatorScreen(
                 } else if (landscapeKeyboardLayout) {
                     LandscapeKeyboardSessionLayout(
                         sessionRepository = sessionRepository,
-                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scaleMode = ScaleMode.FIT,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
                         screenWidth = screenWidth,
@@ -781,7 +784,7 @@ fun EmulatorScreen(
                 } else if (landscapeControlsFullscreenHidden) {
                     LandscapeFullscreenSessionLayout(
                         sessionRepository = sessionRepository,
-                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scaleMode = ScaleMode.FIT,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
                         toggleInputIconResId = toggleInputIconResId,
@@ -792,10 +795,12 @@ fun EmulatorScreen(
                             .fillMaxWidth(),
                     )
                 } else {
+                    val emulatorStageWidth = portraitRuntimeLayoutMetrics?.emulatorWidth ?: contentWidth
+                    val emulatorStageHeight = portraitRuntimeLayoutMetrics?.emulatorHeight ?: emulatorViewportHeight
                     val emulatorStageModifier = if (compactPortraitKeyboardLayout || shouldReclaimViewportSpace) {
                         Modifier
-                            .fillMaxWidth()
-                            .height(emulatorViewportHeight)
+                            .width(emulatorStageWidth)
+                            .height(emulatorStageHeight)
                     } else {
                         Modifier
                             .weight(1f)
@@ -856,7 +861,7 @@ fun EmulatorScreen(
                                 else -> {
                                     EmulatorRenderHost(
                                         sessionRepository = sessionRepository,
-                                        scaleMode = launchSettingsState.settings.scaleMode,
+                                        scaleMode = ScaleMode.FIT,
                                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
                                         modifier = Modifier.fillMaxSize(),
@@ -1876,7 +1881,6 @@ private fun FullScreenSettings(
     currentLaunchModeLabel: String,
     showFujiNetSection: Boolean,
     onSettingsTabSelected: (SettingsTab) -> Unit,
-    onScaleModeSelected: (ScaleMode) -> Unit,
     onEmulatorVolumeChanged: (Int) -> Unit,
     onEmulatorVolumeChangeFinished: () -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
@@ -2029,7 +2033,6 @@ private fun FullScreenSettings(
 
                     SettingsTab.APP -> AppSettingsTab(
                         state = launchSettingsState,
-                        onScaleModeSelected = onScaleModeSelected,
                         onEmulatorVolumeChanged = onEmulatorVolumeChanged,
                         onEmulatorVolumeChangeFinished = onEmulatorVolumeChangeFinished,
                         onKeepScreenOnChanged = onKeepScreenOnChanged,
@@ -2602,7 +2605,6 @@ private fun FujiNetSettingsTab(
 @Composable
 private fun AppSettingsTab(
     state: LaunchSettingsUiState,
-    onScaleModeSelected: (ScaleMode) -> Unit,
     onEmulatorVolumeChanged: (Int) -> Unit,
     onEmulatorVolumeChangeFinished: () -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
@@ -2620,19 +2622,6 @@ private fun AppSettingsTab(
 ) {
     SettingsSection(title = "Display settings") {
         SettingsGroup {
-            SettingsPickerRow(
-                title = "Scale mode",
-                value = state.scaleModeLabel,
-                subtitle = "Choose between fit and fill for the display output.",
-                options = ScaleMode.entries.map { mode ->
-                    PickerOption(value = mode, label = mode.toLabel())
-                },
-                selectedValue = state.settings.scaleMode,
-                onSelected = onScaleModeSelected,
-                testTagPrefix = "scale-mode",
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
                 title = "Rotate screen",
                 value = state.orientationModeLabel,
@@ -3439,31 +3428,113 @@ private fun joystickContainerHeight(compact: Boolean): androidx.compose.ui.unit.
 
 private fun portraitFunctionBarContainerHeight(compact: Boolean) = if (compact) 48.dp else 58.dp
 
+internal fun calculatePortraitRuntimeLayoutMetrics(
+    layoutAvailableHeight: Dp,
+    contentWidth: Dp,
+    fullWidthEmulatorHeight: Dp,
+    sizeFraction: Float,
+): PortraitRuntimeLayoutMetrics {
+    val defaultMaxInputPanelHeight = (layoutAvailableHeight - fullWidthEmulatorHeight)
+        .coerceAtLeast(0.dp)
+    val minimumEmulatorWidth = maxOf(
+        PortraitMinimumEmulatorWidth,
+        contentWidth * PortraitMinimumEmulatorWidthFraction,
+    ).coerceAtMost(contentWidth)
+    val minimumEmulatorHeight = (minimumEmulatorWidth / EmulatorDisplayAspectRatio)
+        .coerceAtMost(fullWidthEmulatorHeight)
+    val expandedMaxInputPanelHeight = (layoutAvailableHeight - minimumEmulatorHeight)
+        .coerceAtLeast(defaultMaxInputPanelHeight)
+    val inputPanelMetrics = calculatePortraitInputPanelMetrics(
+        defaultMaxAvailableHeight = defaultMaxInputPanelHeight,
+        expandedMaxAvailableHeight = expandedMaxInputPanelHeight,
+        sizeFraction = sizeFraction,
+    )
+    val emulatorHeight = (layoutAvailableHeight - inputPanelMetrics.totalHeight)
+        .coerceIn(minimumEmulatorHeight, fullWidthEmulatorHeight)
+    val emulatorWidth = (emulatorHeight * EmulatorDisplayAspectRatio)
+        .coerceAtMost(contentWidth)
+    val emulatorContainerHeight = (layoutAvailableHeight - inputPanelMetrics.totalHeight)
+        .coerceAtLeast(emulatorHeight)
+    return PortraitRuntimeLayoutMetrics(
+        emulatorWidth = emulatorWidth,
+        emulatorHeight = emulatorHeight,
+        emulatorContainerHeight = emulatorContainerHeight,
+        inputPanelMetrics = inputPanelMetrics,
+    )
+}
+
 private fun calculatePortraitInputPanelMetrics(
-    maxAvailableHeight: androidx.compose.ui.unit.Dp,
+    defaultMaxAvailableHeight: Dp,
+    expandedMaxAvailableHeight: Dp,
     sizeFraction: Float,
 ): PortraitInputPanelMetrics {
-    val minHeight = PortraitInputResizeChromeHeight.coerceAtMost(maxAvailableHeight)
-    val maxHeight = maxAvailableHeight.coerceAtLeast(minHeight)
+    val minHeight = PortraitInputResizeChromeHeight.coerceAtMost(expandedMaxAvailableHeight)
+    val defaultMaxHeight = defaultMaxAvailableHeight
+        .coerceAtLeast(minHeight)
+        .coerceAtMost(expandedMaxAvailableHeight.coerceAtLeast(minHeight))
+    val maxHeight = expandedMaxAvailableHeight.coerceAtLeast(defaultMaxHeight)
     if (maxHeight <= minHeight) {
         return PortraitInputPanelMetrics(
             totalHeight = maxHeight,
             minHeight = minHeight,
+            defaultExpandedHeight = maxHeight,
             maxHeight = maxHeight,
             fraction = 1f,
             contentHeight = 0.dp,
         )
     }
 
-    val clampedFraction = sizeFraction.coerceIn(0f, 1f)
-    val totalHeight = minHeight + ((maxHeight - minHeight) * clampedFraction)
+    val clampedFraction = sizeFraction.coerceIn(0f, 2f)
+    val totalHeight = calculatePortraitInputPanelHeight(
+        minHeight = minHeight,
+        defaultExpandedHeight = defaultMaxHeight,
+        maxHeight = maxHeight,
+        fraction = clampedFraction,
+    )
     return PortraitInputPanelMetrics(
         totalHeight = totalHeight,
         minHeight = minHeight,
+        defaultExpandedHeight = defaultMaxHeight,
         maxHeight = maxHeight,
         fraction = clampedFraction,
         contentHeight = (totalHeight - PortraitInputResizeChromeHeight).coerceAtLeast(0.dp),
     )
+}
+
+private fun calculatePortraitInputPanelHeight(
+    minHeight: Dp,
+    defaultExpandedHeight: Dp,
+    maxHeight: Dp,
+    fraction: Float,
+): Dp {
+    val clampedFraction = fraction.coerceIn(0f, 2f)
+    return if (clampedFraction <= 1f) {
+        minHeight + ((defaultExpandedHeight - minHeight) * clampedFraction)
+    } else {
+        defaultExpandedHeight + ((maxHeight - defaultExpandedHeight) * (clampedFraction - 1f))
+    }
+}
+
+private fun PortraitInputPanelMetrics.totalHeightForFraction(fraction: Float): Dp {
+    return calculatePortraitInputPanelHeight(
+        minHeight = minHeight,
+        defaultExpandedHeight = defaultExpandedHeight,
+        maxHeight = maxHeight,
+        fraction = fraction,
+    )
+}
+
+private fun PortraitInputPanelMetrics.fractionForTotalHeight(totalHeight: Dp): Float {
+    val clampedHeight = totalHeight.coerceIn(minHeight, maxHeight)
+    return if (clampedHeight <= defaultExpandedHeight || maxHeight <= defaultExpandedHeight) {
+        if (defaultExpandedHeight <= minHeight) {
+            1f
+        } else {
+            ((clampedHeight - minHeight) / (defaultExpandedHeight - minHeight)).coerceIn(0f, 1f)
+        }
+    } else {
+        1f + ((clampedHeight - defaultExpandedHeight) / (maxHeight - defaultExpandedHeight)).coerceIn(0f, 1f)
+    }
 }
 
 private val CompactButtonHeight = 34.dp
@@ -3476,15 +3547,26 @@ private val PortraitInputResizeHandleSpacing = 6.dp
 private val PortraitInputResizeChromeHeight = PortraitInputResizeHandleHeight + PortraitInputResizeHandleSpacing
 private val PortraitInputDrawerContentThreshold = 56.dp
 private const val PortraitInputDrawerCollapseFraction = 0.02f
-private const val PortraitInputDrawerExpandSnapFraction = 0.98f
+private const val PortraitInputDrawerDefaultSnapDistance = 0.04f
+private const val PortraitInputDrawerExpandedSnapFraction = 1.98f
+private val PortraitMinimumEmulatorWidth = 320.dp
+private const val PortraitMinimumEmulatorWidthFraction = 0.58f
 private const val EmulatorDisplayAspectRatio = 4f / 3f
 
-private data class PortraitInputPanelMetrics(
-    val totalHeight: androidx.compose.ui.unit.Dp,
-    val minHeight: androidx.compose.ui.unit.Dp,
-    val maxHeight: androidx.compose.ui.unit.Dp,
+internal data class PortraitRuntimeLayoutMetrics(
+    val emulatorWidth: Dp,
+    val emulatorHeight: Dp,
+    val emulatorContainerHeight: Dp,
+    val inputPanelMetrics: PortraitInputPanelMetrics,
+)
+
+internal data class PortraitInputPanelMetrics(
+    val totalHeight: Dp,
+    val minHeight: Dp,
+    val defaultExpandedHeight: Dp,
+    val maxHeight: Dp,
     val fraction: Float,
-    val contentHeight: androidx.compose.ui.unit.Dp,
+    val contentHeight: Dp,
 )
 
 @Composable

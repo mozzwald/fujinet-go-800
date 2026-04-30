@@ -81,9 +81,10 @@ class EmulatorSettingsRepository private constructor(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun updateScaleMode(scaleMode: ScaleMode) {
         dataStore.edit { preferences ->
-            preferences[EmulatorSettingsPreferenceKeys.scaleMode] = scaleMode.name
+            preferences[EmulatorSettingsPreferenceKeys.scaleMode] = ScaleMode.FIT.name
         }
     }
 
@@ -208,7 +209,7 @@ class EmulatorSettingsRepository private constructor(
 
     suspend fun updatePortraitInputPanelSizeFraction(fraction: Float) {
         dataStore.edit { preferences ->
-            preferences[EmulatorSettingsPreferenceKeys.portraitInputPanelSizeFraction] = fraction.coerceIn(0f, 1f)
+            preferences[EmulatorSettingsPreferenceKeys.portraitInputPanelSizeFraction] = fraction.coerceIn(0f, 2f)
         }
     }
 
@@ -373,10 +374,7 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
             key = EmulatorSettingsPreferenceKeys.launchMode,
             defaultValue = LaunchMode.FUJINET_ENABLED,
         ).let { LaunchMode.FUJINET_ENABLED },
-        scaleMode = getEnumOrDefault(
-            key = EmulatorSettingsPreferenceKeys.scaleMode,
-            defaultValue = ScaleMode.FIT,
-        ),
+        scaleMode = ScaleMode.FIT,
         emulatorVolumePercent = (this[EmulatorSettingsPreferenceKeys.emulatorVolumePercent] ?: 35).coerceIn(0, 100),
         keepScreenOn = this[EmulatorSettingsPreferenceKeys.keepScreenOn] ?: true,
         backgroundAudioEnabled = this[EmulatorSettingsPreferenceKeys.backgroundAudioEnabled] ?: false,
@@ -421,7 +419,7 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
             this[EmulatorSettingsPreferenceKeys.landscapeControlsFullscreenHidden] ?: false,
         inputHideHintSeen = this[EmulatorSettingsPreferenceKeys.inputHideHintSeen] ?: false,
         portraitInputPanelSizeFraction =
-            (this[EmulatorSettingsPreferenceKeys.portraitInputPanelSizeFraction] ?: 1f).coerceIn(0f, 1f),
+            (this[EmulatorSettingsPreferenceKeys.portraitInputPanelSizeFraction] ?: 1f).coerceIn(0f, 2f),
         keyboardInputMode = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.keyboardInputMode,
             defaultValue = KeyboardInputMode.INTERNAL,

@@ -5,6 +5,8 @@
 * Change SHIFT and SYM layout to be more Atari friendly
 * Add SHIFT/CTRL BACKSPACE for DELETE Line and DELETE
 * Add Open SD Card Folder button in FujiNet Settings
+* Allow adjusting input panel larger and shrink screen in portrait
+* Remove scale mode setting
 
 # 1.0.1
 

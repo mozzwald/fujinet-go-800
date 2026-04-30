@@ -21,7 +21,6 @@ import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterSettings
 import com.mantismoonlabs.fujinetgo800.settings.OrientationMode
-import com.mantismoonlabs.fujinetgo800.settings.ScaleMode
 import com.mantismoonlabs.fujinetgo800.settings.SioPatchMode
 import com.mantismoonlabs.fujinetgo800.settings.SystemRomKind
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
@@ -49,7 +48,6 @@ enum class SettingsTab {
 data class LaunchSettingsUiState(
     val selectedTab: SettingsTab = SettingsTab.FUJINET,
     val launchModeLabel: String = "FujiNet enabled",
-    val scaleModeLabel: String = "Fit",
     val emulatorVolumeLabel: String = "35%",
     val keepScreenOnLabel: String = "On",
     val keepScreenOnActionLabel: String = "Turn off",
@@ -161,7 +159,6 @@ class LaunchSettingsViewModel(
             LaunchSettingsUiState(
                 selectedTab = tab,
                 launchModeLabel = settings.launchMode.toLabel(),
-                scaleModeLabel = settings.scaleMode.toLabel(),
                 emulatorVolumeLabel = settings.emulatorVolumePercent.toPercentLabel(),
                 keepScreenOnLabel = settings.keepScreenOn.toWakeLabel(),
                 keepScreenOnActionLabel = settings.keepScreenOn.toWakeActionLabel(),
@@ -235,13 +232,6 @@ class LaunchSettingsViewModel(
         editableSettings.update { settings -> settings.copy(launchMode = LaunchMode.FUJINET_ENABLED) }
         persistChange {
             settingsRepository.updateLaunchMode(LaunchMode.FUJINET_ENABLED)
-        }
-    }
-
-    fun onScaleModeSelected(scaleMode: ScaleMode) {
-        editableSettings.update { settings -> settings.copy(scaleMode = scaleMode) }
-        persistChange {
-            settingsRepository.updateScaleMode(scaleMode)
         }
     }
 
@@ -610,12 +600,6 @@ class LaunchSettingsViewModel(
     private fun LaunchMode.toLabel(): String = when (this) {
         LaunchMode.FUJINET_ENABLED -> "FujiNet enabled"
         LaunchMode.LOCAL_ONLY -> "Local only"
-    }
-
-    private fun ScaleMode.toLabel(): String = when (this) {
-        ScaleMode.FIT -> "Fit"
-        ScaleMode.FILL -> "Fill"
-        ScaleMode.INTEGER -> "Integer"
     }
 
     private fun OrientationMode.toLabel(): String = when (this) {

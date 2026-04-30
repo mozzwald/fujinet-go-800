@@ -29,7 +29,7 @@ class EmulatorSettingsRepositoryTest {
     }
 
     @Test
-    fun betaBuildClampsPersistedLaunchModeToFujiNet() = runTest {
+    fun betaBuildClampsPersistedLaunchModeAndScaleMode() = runTest {
         val settingsFile = temporaryFolder.newFile("emulator-settings.preferences_pb")
         val firstScope = CoroutineScope(coroutineContext + Job())
         val firstRepository = EmulatorSettingsRepository.createForTest(
@@ -52,7 +52,7 @@ class EmulatorSettingsRepositoryTest {
         assertEquals(
             EmulatorSettings(
                 launchMode = LaunchMode.FUJINET_ENABLED,
-                scaleMode = ScaleMode.FILL,
+                scaleMode = ScaleMode.FIT,
                 keepScreenOn = false,
                 orientationMode = OrientationMode.LANDSCAPE,
                 turboEnabled = true,
@@ -95,7 +95,7 @@ class EmulatorSettingsRepositoryTest {
     }
 
     @Test
-    fun persistsExpandedPhaseElevenSettings() = runTest {
+    fun persistsExpandedPhaseElevenSettingsAndForcesFitScaleMode() = runTest {
         val settingsFile = temporaryFolder.newFile("phase11.preferences_pb")
         val firstScope = CoroutineScope(coroutineContext + Job())
         val firstRepository = EmulatorSettingsRepository.createForTest(
@@ -129,7 +129,7 @@ class EmulatorSettingsRepositoryTest {
 
         assertEquals(
             EmulatorSettings(
-                scaleMode = ScaleMode.INTEGER,
+                scaleMode = ScaleMode.FIT,
                 pauseOnAppSwitch = true,
                 machineType = AtariMachineType.ATARI_5200,
                 memoryProfile = MemoryProfile.RAM_16,
@@ -174,5 +174,19 @@ class EmulatorSettingsRepositoryTest {
             50,
             reloadedRepository.settings.first().emulatorVolumePercent,
         )
+    }
+
+    @Test
+    fun portraitInputPanelFractionAllowsExtendedEmulatorShrinkRange() = runTest {
+        val repository = EmulatorSettingsRepository.createForTest(
+            produceFile = { temporaryFolder.newFile("portrait-input.preferences_pb") },
+            scope = CoroutineScope(coroutineContext + Job()),
+        )
+
+        repository.updatePortraitInputPanelSizeFraction(1.6f)
+        assertEquals(1.6f, repository.settings.first().portraitInputPanelSizeFraction, 0.001f)
+
+        repository.updatePortraitInputPanelSizeFraction(3f)
+        assertEquals(2f, repository.settings.first().portraitInputPanelSizeFraction, 0.001f)
     }
 }

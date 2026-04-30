@@ -9,7 +9,6 @@ import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterSettings
 import com.mantismoonlabs.fujinetgo800.settings.OrientationMode
-import com.mantismoonlabs.fujinetgo800.settings.ScaleMode
 import com.mantismoonlabs.fujinetgo800.settings.SioPatchMode
 import com.mantismoonlabs.fujinetgo800.settings.SystemRomKind
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
@@ -90,7 +89,6 @@ class LaunchSettingsViewModelTest {
         )
         val expectedSettings = EmulatorSettings(
             launchMode = LaunchMode.FUJINET_ENABLED,
-            scaleMode = ScaleMode.FILL,
             keepScreenOn = false,
             orientationMode = OrientationMode.LANDSCAPE,
             turboEnabled = true,
@@ -98,7 +96,6 @@ class LaunchSettingsViewModelTest {
         )
 
         viewModel.onLaunchModeSelected(expectedSettings.launchMode)
-        viewModel.onScaleModeSelected(expectedSettings.scaleMode)
         viewModel.onKeepScreenOnChanged(expectedSettings.keepScreenOn)
         viewModel.onOrientationModeSelected(expectedSettings.orientationMode)
         viewModel.onTurboModeChanged(expectedSettings.turboEnabled)
@@ -507,7 +504,6 @@ class LaunchSettingsViewModelTest {
         )
 
         viewModel.onLaunchModeSelected(LaunchMode.LOCAL_ONLY)
-        viewModel.onScaleModeSelected(ScaleMode.FILL)
         viewModel.onMachineTypeSelected(AtariMachineType.ATARI_130XE)
         viewModel.onMemoryProfileSelected(MemoryProfile.RAM_128)
         advanceUntilIdle()
