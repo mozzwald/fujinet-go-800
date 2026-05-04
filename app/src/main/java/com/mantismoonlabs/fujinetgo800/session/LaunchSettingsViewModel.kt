@@ -32,6 +32,7 @@ import com.mantismoonlabs.fujinetgo800.storage.RuntimePaths
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomDocumentStore
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomSelection
 import java.io.File
+import java.io.RandomAccessFile
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +40,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+private const val RECENT_FUJINET_LOG_BYTES = 16 * 1024
 
 enum class SettingsTab {
     MACHINE,
@@ -105,7 +108,9 @@ class LaunchSettingsViewModel(
     private val fujiNetSettingsBridge: FujiNetSettingsBridge = FujiNetSettingsBridge(runtimePaths),
     private val systemRomDocumentStore: SystemRomDocumentStore? = null,
     private val recentLogProvider: () -> String = {
-        runCatching { FujiNetNative.recentLog() }.getOrDefault("")
+        readRecentFujiNetLog(runtimePaths.fujiNetConsoleLogFile).ifBlank {
+            runCatching { FujiNetNative.recentLog() }.getOrDefault("")
+        }
     },
 ) : ViewModel() {
     private val persistedSettings: StateFlow<EmulatorSettings> = settingsRepository.settings
@@ -801,4 +806,35 @@ private fun RuntimePaths.toFujiNetStorageModeLabel(): String {
     } else {
         "Private app storage fallback"
     }
+}
+
+private fun readRecentFujiNetLog(
+    file: File,
+    maxBytes: Int = RECENT_FUJINET_LOG_BYTES,
+): String {
+    if (maxBytes <= 0 || !file.isFile) {
+        return ""
+    }
+    return runCatching {
+        RandomAccessFile(file, "r").use { logFile ->
+            val fileLength = logFile.length()
+            if (fileLength <= 0L) {
+                return@use ""
+            }
+
+            val bytesToRead = minOf(fileLength, maxBytes.toLong()).toInt()
+            val startOffset = fileLength - bytesToRead
+            val bytes = ByteArray(bytesToRead)
+            logFile.seek(startOffset)
+            logFile.readFully(bytes)
+
+            val firstByte = if (startOffset > 0L) {
+                bytes.indexOfFirst { it == '\n'.code.toByte() } + 1
+            } else {
+                0
+            }
+            val safeFirstByte = if (firstByte in 1 until bytes.size) firstByte else 0
+            bytes.decodeToString(startIndex = safeFirstByte)
+        }
+    }.getOrDefault("")
 }

@@ -1,10 +1,11 @@
-# 1.?
+# 1.1.0
 
 * Add inverse key and show inverse legends when active
 * Change Fn key legend to SYM
 * Change SHIFT and SYM layout to be more Atari friendly
 * Add SHIFT/CTRL BACKSPACE for DELETE Line and DELETE
 * Add Open SD Card Folder button in FujiNet Settings
+* Fix FujiNet Debug log refresh button to show latest log entries
 
 # 1.0.1
 

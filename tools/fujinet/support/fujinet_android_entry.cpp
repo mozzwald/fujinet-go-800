@@ -438,7 +438,8 @@ extern "C" int fujinet_android_copy_recent_log(char* output, int maxBytes) {
         g_log_tail.size(),
         static_cast<size_t>(maxBytes - 1)
     );
-    memcpy(output, g_log_tail.data(), copyable);
+    const size_t offset = g_log_tail.size() - copyable;
+    memcpy(output, g_log_tail.data() + offset, copyable);
     output[copyable] = '\0';
     return static_cast<int>(copyable);
 }

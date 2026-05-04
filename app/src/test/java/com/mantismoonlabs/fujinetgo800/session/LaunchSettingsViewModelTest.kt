@@ -521,6 +521,31 @@ class LaunchSettingsViewModelTest {
     }
 
     @Test
+    fun refreshFujiNetLogReadsNewestBlockFromLargeLogFile() = runTest {
+        val settingsRepository = createSettingsRepository(
+            scope = CoroutineScope(coroutineContext + Job()),
+            fileName = "large-fujinet-log.preferences_pb",
+        )
+        val runtimePaths = RuntimePaths(temporaryFolder.newFolder("large-fujinet-log-root"))
+        runtimePaths.fujiNetRuntimeDirectory.mkdirs()
+        runtimePaths.fujiNetConsoleLogFile.writeText(
+            "old-start\n" +
+                "a".repeat(20 * 1024) +
+                "\nrecent-one\nrecent-two\n",
+        )
+
+        val viewModel = LaunchSettingsViewModel(
+            settingsRepository = settingsRepository,
+            sessionRepository = RecordingSessionRepository(),
+            runtimePaths = runtimePaths,
+        )
+
+        advanceUntilIdle()
+
+        assertEquals("recent-one\nrecent-two\n", viewModel.uiState.value.fujiNetRecentLogLabel)
+    }
+
+    @Test
     fun selectingExpandedMachineTypeCoercesInvalidMemoryProfile() = runTest {
         val settingsRepository = createSettingsRepository(
             scope = CoroutineScope(coroutineContext + Job()),
