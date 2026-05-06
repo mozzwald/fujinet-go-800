@@ -16,6 +16,10 @@ interface SessionRepository {
         dispatch(SessionCommand.SetKeyState(aKeyCode = aKeyCode, pressed = pressed))
     }
 
+    fun pasteText(text: String) {
+        dispatch(SessionCommand.PasteText(text))
+    }
+
     fun setConsoleKeys(start: Boolean, select: Boolean, option: Boolean) {
         dispatch(
             SessionCommand.SetConsoleKeys(

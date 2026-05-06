@@ -73,6 +73,7 @@ sealed interface SessionCommand {
     data class ApplyAtari400800Rom(val importedPath: String) : SessionCommand
     data object ClearAtari400800Rom : SessionCommand
     data class SetKeyState(val aKeyCode: Int, val pressed: Boolean) : SessionCommand
+    data class PasteText(val text: String) : SessionCommand
     data class SetConsoleKeys(val start: Boolean, val select: Boolean, val option: Boolean) : SessionCommand
     data class SetJoystickState(val port: Int, val x: Float, val y: Float, val fire: Boolean) : SessionCommand
     data object HostStarted : SessionCommand

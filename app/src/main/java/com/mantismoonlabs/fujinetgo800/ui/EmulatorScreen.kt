@@ -1,5 +1,6 @@
 package com.mantismoonlabs.fujinetgo800.ui
 
+import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
@@ -10,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
@@ -63,7 +65,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
@@ -80,9 +84,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -133,6 +139,7 @@ import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsViewModel
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickPadControl
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickControls
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 @Composable
@@ -854,7 +861,7 @@ fun EmulatorScreen(
                                 }
 
                                 else -> {
-                                    EmulatorRenderHost(
+                                    PasteEnabledEmulatorRenderHost(
                                         sessionRepository = sessionRepository,
                                         scaleMode = launchSettingsState.settings.scaleMode,
                                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
@@ -1119,6 +1126,171 @@ fun EmulatorScreen(
         }
     }
 }
+
+@Composable
+private fun PasteEnabledEmulatorRenderHost(
+    sessionRepository: SessionRepository,
+    scaleMode: ScaleMode,
+    scanlinesEnabled: Boolean,
+    keepScreenOn: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    var pasteChip by remember { mutableStateOf<PasteChipState?>(null) }
+
+    LaunchedEffect(pasteChip) {
+        if (pasteChip != null) {
+            delay(PasteChipTimeoutMillis)
+            pasteChip = null
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier) {
+        EmulatorRenderHost(
+            sessionRepository = sessionRepository,
+            scaleMode = scaleMode,
+            scanlinesEnabled = scanlinesEnabled,
+            keepScreenOn = keepScreenOn,
+            modifier = Modifier
+                .fillMaxSize()
+                .singlePointerLongPressInput { position ->
+                    val clipboardText = context.readClipboardText()
+                    if (clipboardText.isNotEmpty()) {
+                        pasteChip = PasteChipState(
+                            text = clipboardText,
+                            preview = clipboardText.toPastePreview(),
+                            position = position,
+                        )
+                    }
+                },
+        )
+
+        val chip = pasteChip
+        if (chip != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(chip) {
+                        detectTapGestures(onTap = { pasteChip = null })
+                    },
+            )
+
+            val chipX = with(density) { chip.position.x.toDp() + PasteChipOffset }
+                .coerceIn(8.dp, (maxWidth - PasteChipMaxWidth).coerceAtLeast(8.dp))
+            val chipY = with(density) { chip.position.y.toDp() + PasteChipOffset }
+                .coerceIn(8.dp, (maxHeight - PasteChipHeight).coerceAtLeast(8.dp))
+
+            Surface(
+                modifier = Modifier
+                    .offset { IntOffset(chipX.roundToPx(), chipY.roundToPx()) }
+                    .widthIn(max = PasteChipMaxWidth)
+                    .height(PasteChipHeight)
+                    .clickable {
+                        sessionRepository.pasteText(chip.text)
+                        pasteChip = null
+                    },
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                tonalElevation = 6.dp,
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "📋 Paste \"${chip.preview}\"",
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.singlePointerLongPressInput(
+    onLongPress: (Offset) -> Unit,
+): Modifier = pointerInput(onLongPress) {
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val pointerId = down.id
+            val startPosition = down.position
+            var cancelled = false
+            var cancelledWithPointersDown = false
+
+            val timedOut = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.size != 1) {
+                        cancelled = true
+                        cancelledWithPointersDown = event.changes.any { it.pressed }
+                        return@withTimeoutOrNull
+                    }
+
+                    val change = event.changes.firstOrNull { it.id == pointerId }
+                    if (change == null || !change.pressed) {
+                        cancelled = true
+                        cancelledWithPointersDown = change?.pressed == true
+                        return@withTimeoutOrNull
+                    }
+
+                    if ((change.position - startPosition).getDistance() > viewConfiguration.touchSlop) {
+                        cancelled = true
+                        cancelledWithPointersDown = true
+                        return@withTimeoutOrNull
+                    }
+                }
+            } == null
+
+            if (timedOut && !cancelled) {
+                onLongPress(startPosition)
+                waitForAllPointersUp()
+            } else if (cancelledWithPointersDown) {
+                waitForAllPointersUp()
+            }
+        }
+    }
+}
+
+private suspend fun AwaitPointerEventScope.waitForAllPointersUp() {
+    do {
+        val event = awaitPointerEvent()
+    } while (event.changes.any { it.pressed })
+}
+
+private fun android.content.Context.readClipboardText(): String {
+    val clipboardManager = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        ?: return ""
+    val clip = clipboardManager.primaryClip ?: return ""
+    if (clip.itemCount == 0) {
+        return ""
+    }
+    return clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
+}
+
+private fun String.toPastePreview(): String {
+    val firstLine = replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .lineSequence()
+        .firstOrNull()
+        .orEmpty()
+        .replace('\t', ' ')
+    return if (firstLine.length <= PastePreviewMaxLength) {
+        firstLine
+    } else {
+        firstLine.take(PastePreviewMaxLength - 3) + "..."
+    }
+}
+
+private data class PasteChipState(
+    val text: String,
+    val preview: String,
+    val position: Offset,
+)
 
 @Composable
 private fun PortraitResizableInputPanel(
@@ -1388,7 +1560,7 @@ private fun LandscapeKeyboardSessionLayout(
                     )
                 }
             }
-            EmulatorRenderHost(
+            PasteEnabledEmulatorRenderHost(
                 sessionRepository = sessionRepository,
                 scaleMode = scaleMode,
                 scanlinesEnabled = scanlinesEnabled,
@@ -1585,7 +1757,7 @@ private fun LandscapeJoystickSessionLayout(
                 )
             }
         }
-        EmulatorRenderHost(
+        PasteEnabledEmulatorRenderHost(
             sessionRepository = sessionRepository,
             scaleMode = scaleMode,
             scanlinesEnabled = scanlinesEnabled,
@@ -1670,7 +1842,7 @@ private fun LandscapeFullscreenSessionLayout(
                     .width(emulatorWidth)
                     .fillMaxHeight(),
             ) {
-                EmulatorRenderHost(
+                PasteEnabledEmulatorRenderHost(
                     sessionRepository = sessionRepository,
                     scaleMode = scaleMode,
                     scanlinesEnabled = scanlinesEnabled,
@@ -3478,6 +3650,11 @@ private val PortraitInputDrawerContentThreshold = 56.dp
 private const val PortraitInputDrawerCollapseFraction = 0.02f
 private const val PortraitInputDrawerExpandSnapFraction = 0.98f
 private const val EmulatorDisplayAspectRatio = 4f / 3f
+private val PasteChipOffset = 8.dp
+private val PasteChipHeight = 38.dp
+private val PasteChipMaxWidth = 260.dp
+private const val PasteChipTimeoutMillis = 2_500L
+private const val PastePreviewMaxLength = 28
 
 private data class PortraitInputPanelMetrics(
     val totalHeight: androidx.compose.ui.unit.Dp,

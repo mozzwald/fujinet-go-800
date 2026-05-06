@@ -25,6 +25,7 @@ import com.mantismoonlabs.fujinetgo800.core.EmulatorNative
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetDebugFailureMode
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetServiceBridge
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetStartupException
+import com.mantismoonlabs.fujinetgo800.input.AndroidAtariKeyMapper
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
@@ -35,8 +36,10 @@ import com.mantismoonlabs.fujinetgo800.storage.MediaDocumentStore
 import com.mantismoonlabs.fujinetgo800.storage.RuntimePaths
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.text.Normalizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -152,8 +155,10 @@ class EmulatorSessionService : LifecycleService() {
     }
     private var audioPlayer: EmulatorAudioPlayer? = null
     private var startJob: Job? = null
+    private var pasteJob: Job? = null
     private var shutdownInProgress = false
     private val controllerCommandMutex = Mutex()
+    private val pasteKeyMapper = AndroidAtariKeyMapper()
 
     var attachedSurface: Surface? = null
         private set
@@ -211,6 +216,7 @@ class EmulatorSessionService : LifecycleService() {
 
     override fun onDestroy() {
         startJob?.cancel()
+        pasteJob?.cancel()
         frameProducer.stop()
         runBlocking {
             fujiNetServiceBridge.stop()
@@ -315,6 +321,10 @@ class EmulatorSessionService : LifecycleService() {
                 syncSurfaceStateFromController()
             }
 
+            is SessionCommand.PasteText -> {
+                launchPasteJob(command.text)
+            }
+
             SessionCommand.TogglePause,
             is SessionCommand.AttachSurface,
             SessionCommand.DetachSurface -> {
@@ -365,6 +375,7 @@ class EmulatorSessionService : LifecycleService() {
             SessionCommand.ReturnToLaunch -> {
                 val previousState = state.value
                 startJob?.cancel()
+                pasteJob?.cancel()
                 frameProducer.stop()
                 updateState(controller.dispatch(command))
                 syncSurfaceStateFromController()
@@ -395,6 +406,38 @@ class EmulatorSessionService : LifecycleService() {
 
     fun refreshNotification() {
         notificationManager.notify(NotificationId, buildNotification(state.value))
+    }
+
+    private fun launchPasteJob(text: String) {
+        val normalizedText = text.normalizePasteText()
+        if (normalizedText.isEmpty()) {
+            return
+        }
+
+        pasteJob?.cancel()
+        pasteJob = lifecycleScope.launch {
+            for (character in normalizedText) {
+                val mapping = pasteKeyMapper.mapCharacter(character) ?: continue
+                val aKeyCode = mapping.aKeyCode ?: continue
+                updateState(controller.dispatch(SessionCommand.SetKeyState(aKeyCode, pressed = true)))
+                syncSurfaceStateFromController()
+                delay(PasteKeyHoldMillis)
+                updateState(controller.dispatch(SessionCommand.SetKeyState(aKeyCode, pressed = false)))
+                syncSurfaceStateFromController()
+                delay(20)
+                // Force emulator to observe "no key pressed" (AKEY_NONE=-1) before next character.
+                updateState(controller.dispatch(SessionCommand.SetKeyState(-1, pressed = false)))
+                syncSurfaceStateFromController()
+                delay(20)
+                delay(if (character == '\n') PasteNewlineDelayMillis else PasteInterKeyDelayMillis)
+            }
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (pasteJob == job) {
+                    pasteJob = null
+                }
+            }
+        }
     }
 
     fun startSession(config: SessionLaunchConfig) {
@@ -574,6 +617,9 @@ class EmulatorSessionService : LifecycleService() {
         private const val LogTag = "EmulationService"
         private const val NotificationChannelId = "emulation_runtime"
         private const val NotificationId = 4001
+        private const val PasteKeyHoldMillis = 20L
+        private const val PasteInterKeyDelayMillis = 50L
+        private const val PasteNewlineDelayMillis = 140L
         private val ActionTogglePause = "${BuildConfig.APPLICATION_ID}.action.TOGGLE_PAUSE"
         private val ActionStopService = "${BuildConfig.APPLICATION_ID}.action.STOP_EMULATION"
     }
@@ -885,6 +931,7 @@ internal class EmulatorSessionController(
                 }
             }
 
+            is SessionCommand.PasteText,
             is SessionCommand.ApplyStoredMedia,
             is SessionCommand.ClearStoredMedia -> error("Async media commands are handled by EmulatorSessionService")
         }
@@ -1047,6 +1094,44 @@ private fun Throwable.toFujiNetFailureReason(): FujiNetFailureReason = when (thi
 
             else -> FujiNetFailureReason.ServiceStartFailed
         }
+    }
+}
+
+internal fun String.normalizePasteText(): String {
+    val asciiFriendly = replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .flatMapPasteCharacters()
+    return Normalizer.normalize(asciiFriendly, Normalizer.Form.NFKD)
+        .filterNot { character ->
+            when (Character.getType(character)) {
+                Character.NON_SPACING_MARK.toInt(),
+                Character.ENCLOSING_MARK.toInt(),
+                Character.COMBINING_SPACING_MARK.toInt() -> true
+                else -> false
+            }
+        }
+}
+
+private fun String.flatMapPasteCharacters(): String = buildString {
+    for (character in this@flatMapPasteCharacters) {
+        append(
+            when (character) {
+                '\u2018', '\u2019', '\u201A', '\u201B', '\u2032', '\u0060', '\u00B4' -> "'"
+                '\u201C', '\u201D', '\u201E', '\u201F', '\u00AB', '\u00BB', '\u2033' -> "\""
+                '\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015', '\u2212' -> "-"
+                '\u2026' -> "..."
+                '\u00A0', '\u2007', '\u202F' -> " "
+                '\u2022' -> "*"
+                '\u00D7' -> "x"
+                '\u00F7' -> "/"
+                '\u2190' -> "<-"
+                '\u2192' -> "->"
+                '\u2264' -> "<="
+                '\u2265' -> ">="
+                '\u2260' -> "!="
+                else -> character.toString()
+            },
+        )
     }
 }
 

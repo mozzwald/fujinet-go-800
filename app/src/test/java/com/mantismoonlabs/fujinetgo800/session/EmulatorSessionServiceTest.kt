@@ -15,6 +15,22 @@ import org.junit.Test
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class EmulatorSessionServiceTest {
     @Test
+    fun normalizePasteTextConvertsWebPunctuationToTypeableAscii() {
+        assertEquals(
+            "\"HELLO\" 'THERE' - OK... <= >= !=",
+            "\u201CHELLO\u201D \u2018THERE\u2019 \u2014 OK\u2026 \u2264 \u2265 \u2260".normalizePasteText(),
+        )
+    }
+
+    @Test
+    fun normalizePasteTextNormalizesLineEndingsAndAccents() {
+        assertEquals(
+            "10 PRINT \"cafe\"\n20 GOTO 10\nRUN",
+            "10 PRINT \u201Ccaf\u00E9\u201D\r\n20 GOTO 10\rRUN".normalizePasteText(),
+        )
+    }
+
+    @Test
     fun coldStartPublishesReadyToLaunch() {
         val harness = SessionServiceHarness()
 
