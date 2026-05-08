@@ -557,6 +557,7 @@ fun EmulatorScreen(
                 onJoystickInputStyleSelected = launchSettingsViewModel::onJoystickInputStyleSelected,
                 onJoystickHapticsChanged = launchSettingsViewModel::onJoystickHapticsChanged,
                 onPortInputDeviceSelected = launchSettingsViewModel::onPortInputDeviceSelected,
+                onPortHardwareControllerSelected = launchSettingsViewModel::onPortHardwareControllerSelected,
                 onMouseSpeedChanged = launchSettingsViewModel::onMouseSpeedChanged,
                 onTouchscreenMouseSensitivityChanged = launchSettingsViewModel::onTouchscreenMouseSensitivityChanged,
                 onPauseOnAppSwitchChanged = launchSettingsViewModel::onPauseOnAppSwitchChanged,
@@ -2383,7 +2384,7 @@ private fun PortInputDeviceDialog(
     onHardwareControllerSelected: (HardwareControllerOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val hardwareControllers = remember { connectedHardwareControllerOptions() }
+    val hardwareControllers = connectedHardwareControllerOptions()
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -2551,6 +2552,7 @@ private fun FullScreenSettings(
     onJoystickInputStyleSelected: (JoystickInputStyle) -> Unit,
     onJoystickHapticsChanged: (Boolean) -> Unit,
     onPortInputDeviceSelected: (JoystickPort, PortInputDevice) -> Unit,
+    onPortHardwareControllerSelected: (JoystickPort, PortInputDevice, String, String) -> Unit,
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
@@ -2692,6 +2694,7 @@ private fun FullScreenSettings(
                         onJoystickInputStyleSelected = onJoystickInputStyleSelected,
                         onJoystickHapticsChanged = onJoystickHapticsChanged,
                         onPortInputDeviceSelected = onPortInputDeviceSelected,
+                        onPortHardwareControllerSelected = onPortHardwareControllerSelected,
                         onMouseSpeedChanged = onMouseSpeedChanged,
                         onTouchscreenMouseSensitivityChanged = onTouchscreenMouseSensitivityChanged,
                         onPauseOnAppSwitchChanged = onPauseOnAppSwitchChanged,
@@ -3268,6 +3271,7 @@ private fun AppSettingsTab(
     onJoystickInputStyleSelected: (JoystickInputStyle) -> Unit,
     onJoystickHapticsChanged: (Boolean) -> Unit,
     onPortInputDeviceSelected: (JoystickPort, PortInputDevice) -> Unit,
+    onPortHardwareControllerSelected: (JoystickPort, PortInputDevice, String, String) -> Unit,
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
@@ -3355,49 +3359,61 @@ private fun AppSettingsTab(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
                 title = "Port 1",
-                value = state.settings.port1InputDevice.toLabel(),
+                value = state.settings.inputLabelFor(JoystickPort.PORT_1),
                 subtitle = "Input device connected to joystick port 1.",
-                options = PortInputDevice.entries.map { device ->
-                    PickerOption(value = device, label = device.toLabel())
+                options = emptyList(),
+                optionsProvider = ::portInputPickerOptions,
+                selectedValue = state.settings.selectedPortInputChoice(JoystickPort.PORT_1),
+                onSelected = { choice ->
+                    choice.controllerId?.let { id ->
+                        onPortHardwareControllerSelected(JoystickPort.PORT_1, choice.device, id, choice.controllerName.orEmpty())
+                    } ?: onPortInputDeviceSelected(JoystickPort.PORT_1, choice.device)
                 },
-                selectedValue = state.settings.port1InputDevice,
-                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_1, it) },
                 testTagPrefix = "port-1-input-device",
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
                 title = "Port 2",
-                value = state.settings.port2InputDevice.toLabel(),
+                value = state.settings.inputLabelFor(JoystickPort.PORT_2),
                 subtitle = "Input device connected to joystick port 2.",
-                options = PortInputDevice.entries.map { device ->
-                    PickerOption(value = device, label = device.toLabel())
+                options = emptyList(),
+                optionsProvider = ::portInputPickerOptions,
+                selectedValue = state.settings.selectedPortInputChoice(JoystickPort.PORT_2),
+                onSelected = { choice ->
+                    choice.controllerId?.let { id ->
+                        onPortHardwareControllerSelected(JoystickPort.PORT_2, choice.device, id, choice.controllerName.orEmpty())
+                    } ?: onPortInputDeviceSelected(JoystickPort.PORT_2, choice.device)
                 },
-                selectedValue = state.settings.port2InputDevice,
-                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_2, it) },
                 testTagPrefix = "port-2-input-device",
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
                 title = "Port 3",
-                value = state.settings.port3InputDevice.toLabel(),
+                value = state.settings.inputLabelFor(JoystickPort.PORT_3),
                 subtitle = "Input device connected to joystick port 3.",
-                options = PortInputDevice.entries.map { device ->
-                    PickerOption(value = device, label = device.toLabel())
+                options = emptyList(),
+                optionsProvider = ::portInputPickerOptions,
+                selectedValue = state.settings.selectedPortInputChoice(JoystickPort.PORT_3),
+                onSelected = { choice ->
+                    choice.controllerId?.let { id ->
+                        onPortHardwareControllerSelected(JoystickPort.PORT_3, choice.device, id, choice.controllerName.orEmpty())
+                    } ?: onPortInputDeviceSelected(JoystickPort.PORT_3, choice.device)
                 },
-                selectedValue = state.settings.port3InputDevice,
-                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_3, it) },
                 testTagPrefix = "port-3-input-device",
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
                 title = "Port 4",
-                value = state.settings.port4InputDevice.toLabel(),
+                value = state.settings.inputLabelFor(JoystickPort.PORT_4),
                 subtitle = "Input device connected to joystick port 4.",
-                options = PortInputDevice.entries.map { device ->
-                    PickerOption(value = device, label = device.toLabel())
+                options = emptyList(),
+                optionsProvider = ::portInputPickerOptions,
+                selectedValue = state.settings.selectedPortInputChoice(JoystickPort.PORT_4),
+                onSelected = { choice ->
+                    choice.controllerId?.let { id ->
+                        onPortHardwareControllerSelected(JoystickPort.PORT_4, choice.device, id, choice.controllerName.orEmpty())
+                    } ?: onPortInputDeviceSelected(JoystickPort.PORT_4, choice.device)
                 },
-                selectedValue = state.settings.port4InputDevice,
-                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_4, it) },
                 testTagPrefix = "port-4-input-device",
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -3619,6 +3635,41 @@ private data class PickerOption<T>(
     val label: String,
 )
 
+private data class PortInputChoice(
+    val device: PortInputDevice,
+    val controllerId: String? = null,
+    val controllerName: String? = null,
+)
+
+private fun portInputPickerOptions(): List<PickerOption<PortInputChoice>> {
+    val genericOptions = PortInputDevice.entries
+        .filterNot { it == PortInputDevice.BLUETOOTH_JOYSTICK || it == PortInputDevice.USB_JOYSTICK }
+        .map { device ->
+            PickerOption(value = PortInputChoice(device), label = device.toLabel())
+        }
+    val controllerOptions = connectedHardwareControllerOptions().map { option ->
+        PickerOption(
+            value = PortInputChoice(option.device, option.id, option.name),
+            label = "${option.name} (${option.device.toLabel()})",
+        )
+    }
+    return genericOptions + controllerOptions
+}
+
+private fun EmulatorSettings.selectedPortInputChoice(port: JoystickPort): PortInputChoice {
+    val device = inputDeviceFor(port)
+    val controllerId = hardwareControllerIdFor(port)
+    return if (controllerId != null) {
+        PortInputChoice(device, controllerId, hardwareControllerNameFor(port))
+    } else {
+        PortInputChoice(device)
+    }
+}
+
+private fun EmulatorSettings.inputLabelFor(port: JoystickPort): String {
+    return hardwareControllerNameFor(port)?.takeIf { it.isNotBlank() } ?: inputDeviceFor(port).toLabel()
+}
+
 @Composable
 private fun <T> SettingsPickerRow(
     title: String,
@@ -3630,6 +3681,7 @@ private fun <T> SettingsPickerRow(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     testTagPrefix: String? = null,
+    optionsProvider: (() -> List<PickerOption<T>>)? = null,
 ) {
     var pickerVisible by rememberSaveable(title) { mutableStateOf(false) }
 
@@ -3660,6 +3712,7 @@ private fun <T> SettingsPickerRow(
     }
 
     if (pickerVisible) {
+        val visibleOptions = optionsProvider?.invoke() ?: options
         Dialog(onDismissRequest = { pickerVisible = false }) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
@@ -3681,7 +3734,7 @@ private fun <T> SettingsPickerRow(
                             .heightIn(max = 360.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        options.forEachIndexed { index, option ->
+                        visibleOptions.forEachIndexed { index, option ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -3706,7 +3759,7 @@ private fun <T> SettingsPickerRow(
                                     },
                                 )
                             }
-                            if (index != options.lastIndex) {
+                            if (index != visibleOptions.lastIndex) {
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                             }
                         }
