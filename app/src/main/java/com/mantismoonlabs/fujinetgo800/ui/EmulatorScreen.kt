@@ -3,6 +3,8 @@ package com.mantismoonlabs.fujinetgo800.ui
 import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.os.Build
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.core.content.pm.PackageInfoCompat
 import com.mantismoonlabs.fujinetgo800.BuildConfig
 import com.mantismoonlabs.fujinetgo800.R
@@ -34,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.BasicTextField
@@ -58,11 +61,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -71,6 +76,7 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -100,19 +106,26 @@ import com.mantismoonlabs.fujinetgo800.input.AtariKeyCode
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyMapping
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetBootMode
 import com.mantismoonlabs.fujinetgo800.settings.ControlMode
+import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.AtariMachineType
 import com.mantismoonlabs.fujinetgo800.settings.ArtifactingMode
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
+import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
 import com.mantismoonlabs.fujinetgo800.settings.OrientationMode
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
 import com.mantismoonlabs.fujinetgo800.settings.ScaleMode
 import com.mantismoonlabs.fujinetgo800.settings.SioPatchMode
 import com.mantismoonlabs.fujinetgo800.settings.SystemRomKind
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
+import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerIdFor
+import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerNameFor
+import com.mantismoonlabs.fujinetgo800.settings.inputDeviceFor
+import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
 import com.mantismoonlabs.fujinetgo800.settings.validMemoryProfiles
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsViewModel
@@ -139,6 +152,7 @@ import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsViewModel
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickPadControl
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickControls
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
@@ -351,6 +365,7 @@ fun EmulatorScreen(
     }
     var entryAutoStartPending by rememberSaveable { mutableStateOf(true) }
     var resetDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var portInputPickerPort by rememberSaveable { mutableStateOf<JoystickPort?>(null) }
 
     LaunchedEffect(entryAutoStartPending, sessionState) {
         if (
@@ -485,6 +500,27 @@ fun EmulatorScreen(
                 },
             )
         }
+        portInputPickerPort?.let { port ->
+            PortInputDeviceDialog(
+                port = port,
+                selectedDevice = launchSettingsState.settings.inputDeviceFor(port),
+                selectedControllerId = launchSettingsState.settings.hardwareControllerIdFor(port),
+                onSelected = { device ->
+                    portInputPickerPort = null
+                    launchSettingsViewModel.onPortInputDeviceSelected(port, device)
+                },
+                onHardwareControllerSelected = { option ->
+                    portInputPickerPort = null
+                    launchSettingsViewModel.onPortHardwareControllerSelected(
+                        port = port,
+                        device = option.device,
+                        controllerId = option.id,
+                        controllerName = option.name,
+                    )
+                },
+                onDismiss = { portInputPickerPort = null },
+            )
+        }
         if (uiState.settingsVisible) {
             FullScreenSettings(
                 launchSettingsState = launchSettingsState,
@@ -520,6 +556,9 @@ fun EmulatorScreen(
                 onStickyKeyboardFnChanged = launchSettingsViewModel::onStickyKeyboardFnChanged,
                 onJoystickInputStyleSelected = launchSettingsViewModel::onJoystickInputStyleSelected,
                 onJoystickHapticsChanged = launchSettingsViewModel::onJoystickHapticsChanged,
+                onPortInputDeviceSelected = launchSettingsViewModel::onPortInputDeviceSelected,
+                onMouseSpeedChanged = launchSettingsViewModel::onMouseSpeedChanged,
+                onTouchscreenMouseSensitivityChanged = launchSettingsViewModel::onTouchscreenMouseSensitivityChanged,
                 onPauseOnAppSwitchChanged = launchSettingsViewModel::onPauseOnAppSwitchChanged,
                 onVideoStandardSelected = launchSettingsViewModel::onVideoStandardSelected,
                 onUseFujiNet = {
@@ -697,6 +736,7 @@ fun EmulatorScreen(
                 if (useLandscapeJoystickLayout) {
                     LandscapeJoystickSessionLayout(
                         sessionRepository = sessionRepository,
+                        emulatorSettings = launchSettingsState.settings,
                         scaleMode = launchSettingsState.settings.scaleMode,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
@@ -719,6 +759,7 @@ fun EmulatorScreen(
                         },
                         onResetPressed = openResetDialog,
                         onSettingsPressed = shellViewModel::onSettingsPressed,
+                        onPortStatusPressed = { portInputPickerPort = it },
                         onJoystickMoved = inputControlsViewModel::onJoystickMoved,
                         onJoystickReleased = inputControlsViewModel::onJoystickReleased,
                         onFirePressed = inputControlsViewModel::onFirePressed,
@@ -735,6 +776,7 @@ fun EmulatorScreen(
                 } else if (landscapeKeyboardLayout) {
                     LandscapeKeyboardSessionLayout(
                         sessionRepository = sessionRepository,
+                        emulatorSettings = launchSettingsState.settings,
                         scaleMode = launchSettingsState.settings.scaleMode,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
@@ -788,6 +830,7 @@ fun EmulatorScreen(
                 } else if (landscapeControlsFullscreenHidden) {
                     LandscapeFullscreenSessionLayout(
                         sessionRepository = sessionRepository,
+                        emulatorSettings = launchSettingsState.settings,
                         scaleMode = launchSettingsState.settings.scaleMode,
                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
@@ -863,6 +906,7 @@ fun EmulatorScreen(
                                 else -> {
                                     PasteEnabledEmulatorRenderHost(
                                         sessionRepository = sessionRepository,
+                                        emulatorSettings = launchSettingsState.settings,
                                         scaleMode = launchSettingsState.settings.scaleMode,
                                         scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
                                         keepScreenOn = launchSettingsState.settings.keepScreenOn,
@@ -1105,6 +1149,8 @@ fun EmulatorScreen(
                                                 compact = compactPortraitControls,
                                                 footerContent = {
                                                     JoystickFooterControls(
+                                                        settings = launchSettingsState.settings,
+                                                        onPortStatusPressed = { portInputPickerPort = it },
                                                         onToggleInputMode = toggleInputMode,
                                                         onToggleInputLongPress = toggleInputPanelVisibility,
                                                         toggleIconResId = toggleInputIconResId,
@@ -1130,6 +1176,7 @@ fun EmulatorScreen(
 @Composable
 private fun PasteEnabledEmulatorRenderHost(
     sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
     scaleMode: ScaleMode,
     scanlinesEnabled: Boolean,
     keepScreenOn: Boolean,
@@ -1154,6 +1201,11 @@ private fun PasteEnabledEmulatorRenderHost(
             keepScreenOn = keepScreenOn,
             modifier = Modifier
                 .fillMaxSize()
+                .touchscreenMouseInput(
+                    enabled = emulatorSettings.mousePort() != null,
+                    sensitivity = emulatorSettings.touchscreenMouseSensitivity,
+                    sessionRepository = sessionRepository,
+                )
                 .singlePointerLongPressInput { position ->
                     val clipboardText = context.readClipboardText()
                     if (clipboardText.isNotEmpty()) {
@@ -1251,6 +1303,121 @@ private fun Modifier.singlePointerLongPressInput(
                 waitForAllPointersUp()
             } else if (cancelledWithPointersDown) {
                 waitForAllPointersUp()
+            }
+        }
+    }
+}
+
+private fun Modifier.touchscreenMouseInput(
+    enabled: Boolean,
+    sensitivity: Float,
+    sessionRepository: SessionRepository,
+): Modifier {
+    if (!enabled) {
+        return this
+    }
+    return composed {
+        var activePointerId by remember { mutableStateOf<Int?>(null) }
+        var lastX by remember { mutableStateOf(0f) }
+        var lastY by remember { mutableStateOf(0f) }
+        var remainderX by remember { mutableStateOf(0f) }
+        var remainderY by remember { mutableStateOf(0f) }
+        var downX by remember { mutableStateOf(0f) }
+        var downY by remember { mutableStateOf(0f) }
+        var downTime by remember { mutableStateOf(0L) }
+        var maxPointerCount by remember { mutableStateOf(0) }
+        var moved by remember { mutableStateOf(false) }
+        val tapSlopPx = with(LocalDensity.current) { TouchMouseTapSlop.toPx() }
+        val clickScope = rememberCoroutineScope()
+
+        fun resetMouseTouch() {
+            activePointerId = null
+            maxPointerCount = 0
+            moved = false
+            remainderX = 0f
+            remainderY = 0f
+        }
+
+        fun click(buttonMask: Int) {
+            clickScope.launch {
+                sessionRepository.setMouseState(0, 0, buttonMask)
+                delay(TouchMouseClickHoldMillis)
+                sessionRepository.setMouseState(0, 0, 0)
+            }
+        }
+
+        fun dispatchTrackpadMovement(x: Float, y: Float) {
+            val scaledX = ((x - lastX) * sensitivity) + remainderX
+            val scaledY = ((y - lastY) * sensitivity) + remainderY
+            val dx = scaledX.toInt()
+            val dy = scaledY.toInt()
+            remainderX = scaledX - dx
+            remainderY = scaledY - dy
+            if (dx != 0 || dy != 0) {
+                sessionRepository.setMouseState(dx, dy, 0)
+            }
+            lastX = x
+            lastY = y
+        }
+
+        pointerInteropFilter { event ->
+            maxPointerCount = maxOf(maxPointerCount, event.pointerCount)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    activePointerId = event.getPointerId(event.actionIndex)
+                    lastX = event.getX(event.actionIndex)
+                    lastY = event.getY(event.actionIndex)
+                    downX = lastX
+                    downY = lastY
+                    downTime = event.eventTime
+                    remainderX = 0f
+                    remainderY = 0f
+                    maxPointerCount = 1
+                    moved = false
+                    true
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN -> true
+
+                MotionEvent.ACTION_MOVE -> {
+                    val pointerId = activePointerId ?: return@pointerInteropFilter true
+                    val pointerIndex = event.findPointerIndex(pointerId)
+                    if (pointerIndex < 0) {
+                        resetMouseTouch()
+                        return@pointerInteropFilter true
+                    }
+                    for (historyIndex in 0 until event.historySize) {
+                        dispatchTrackpadMovement(
+                            x = event.getHistoricalX(pointerIndex, historyIndex),
+                            y = event.getHistoricalY(pointerIndex, historyIndex),
+                        )
+                    }
+                    val x = event.getX(pointerIndex)
+                    val y = event.getY(pointerIndex)
+                    dispatchTrackpadMovement(x, y)
+                    if (!moved && kotlin.math.hypot((x - downX).toDouble(), (y - downY).toDouble()) > tapSlopPx.toDouble()) {
+                        moved = true
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_POINTER_UP -> true
+
+                MotionEvent.ACTION_UP -> {
+                    if (!moved && event.eventTime - downTime <= TouchMouseTapTimeoutMillis) {
+                        click(if (maxPointerCount >= 2) MouseButtonRight else MouseButtonLeft)
+                    }
+                    resetMouseTouch()
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    resetMouseTouch()
+                    sessionRepository.setMouseState(0, 0, 0)
+                    true
+                }
+
+                else -> true
             }
         }
     }
@@ -1473,6 +1640,7 @@ private fun ResetChooserDialog(
 @Composable
 private fun LandscapeKeyboardSessionLayout(
     sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
     scaleMode: ScaleMode,
     scanlinesEnabled: Boolean,
     keepScreenOn: Boolean,
@@ -1562,6 +1730,7 @@ private fun LandscapeKeyboardSessionLayout(
             }
             PasteEnabledEmulatorRenderHost(
                 sessionRepository = sessionRepository,
+                emulatorSettings = emulatorSettings,
                 scaleMode = scaleMode,
                 scanlinesEnabled = scanlinesEnabled,
                 keepScreenOn = keepScreenOn,
@@ -1650,6 +1819,7 @@ private fun LandscapeKeyboardSessionLayout(
 @Composable
 private fun LandscapeJoystickSessionLayout(
     sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
     scaleMode: ScaleMode,
     scanlinesEnabled: Boolean,
     keepScreenOn: Boolean,
@@ -1664,6 +1834,7 @@ private fun LandscapeJoystickSessionLayout(
     pauseDescription: String,
     onResetPressed: () -> Unit,
     onSettingsPressed: () -> Unit,
+    onPortStatusPressed: (JoystickPort) -> Unit,
     onJoystickMoved: (Float, Float) -> Unit,
     onJoystickReleased: () -> Unit,
     onFirePressed: () -> Unit,
@@ -1677,6 +1848,8 @@ private fun LandscapeJoystickSessionLayout(
 ) {
     val padWidth = minOf(screenWidth * 0.22f, 220.dp)
     val fireWidth = minOf(screenWidth * 0.18f, 180.dp)
+    val topButtonWidth = 40.dp
+    val escMapping = remember { AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ESCAPE) }
 
     Row(
         modifier = modifier,
@@ -1692,28 +1865,26 @@ private fun LandscapeJoystickSessionLayout(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HoldableCompactTextButton(
+                        label = "ESC",
+                        onPressed = { onFunctionKeyPressed(escMapping) },
+                        onReleased = { onFunctionKeyReleased(escMapping) },
+                        modifier = Modifier.width(topButtonWidth),
+                    )
                     CompactIconButton(
                         iconResId = R.drawable.ic_disk_swap,
                         contentDescription = "Swap FujiNet disks",
-                        modifier = Modifier.width(52.dp),
+                        modifier = Modifier.width(topButtonWidth),
                         onClick = onSwapFujiNetDisks,
                     )
                     CompactIconButton(
                         iconResId = toggleInputIconResId,
                         contentDescription = toggleInputDescription,
-                        modifier = Modifier.width(52.dp),
+                        modifier = Modifier.width(topButtonWidth),
                         onClick = onToggleInputMode,
                         onLongClick = onToggleInputLongPress,
                         longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
-                    )
-                    CompactControlButton(
-                        label = "",
-                        modifier = Modifier.width(52.dp),
-                        onClick = onPauseTogglePressed,
-                        enabled = pauseEnabled,
-                        iconResId = pauseIconResId,
-                        contentDescription = pauseDescription,
                     )
                 }
                 Box(
@@ -1748,6 +1919,13 @@ private fun LandscapeJoystickSessionLayout(
                         }
                     }
                 }
+                PortStatusStrip(
+                    settings = emulatorSettings,
+                    ports = listOf(JoystickPort.PORT_1, JoystickPort.PORT_2),
+                    compact = true,
+                    onPortStatusPressed = onPortStatusPressed,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 AtariFunctionBar(
                     keys = landscapeLeftFunctionKeys,
                     onKeyPressed = onFunctionKeyPressed,
@@ -1759,6 +1937,7 @@ private fun LandscapeJoystickSessionLayout(
         }
         PasteEnabledEmulatorRenderHost(
             sessionRepository = sessionRepository,
+            emulatorSettings = emulatorSettings,
             scaleMode = scaleMode,
             scanlinesEnabled = scanlinesEnabled,
             keepScreenOn = keepScreenOn,
@@ -1776,17 +1955,25 @@ private fun LandscapeJoystickSessionLayout(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    CompactControlButton(
+                        label = "",
+                        modifier = Modifier.width(topButtonWidth),
+                        onClick = onPauseTogglePressed,
+                        enabled = pauseEnabled,
+                        iconResId = pauseIconResId,
+                        contentDescription = pauseDescription,
+                    )
                     CompactIconButton(
                         iconResId = R.drawable.ic_reset,
                         contentDescription = "Reset emulator",
-                        modifier = Modifier.width(52.dp),
+                        modifier = Modifier.width(topButtonWidth),
                         onClick = onResetPressed,
                     )
                     CompactIconButton(
                         iconResId = R.drawable.ic_settings_gear,
                         contentDescription = "Settings",
-                        modifier = Modifier.width(52.dp),
+                        modifier = Modifier.width(topButtonWidth),
                         onClick = onSettingsPressed,
                     )
                 }
@@ -1805,6 +1992,13 @@ private fun LandscapeJoystickSessionLayout(
                         hapticsEnabled = joystickHapticsEnabled,
                     )
                 }
+                PortStatusStrip(
+                    settings = emulatorSettings,
+                    ports = listOf(JoystickPort.PORT_3, JoystickPort.PORT_4),
+                    compact = true,
+                    onPortStatusPressed = onPortStatusPressed,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 AtariFunctionBar(
                     keys = landscapeRightFunctionKeys,
                     onKeyPressed = onFunctionKeyPressed,
@@ -1820,6 +2014,7 @@ private fun LandscapeJoystickSessionLayout(
 @Composable
 private fun LandscapeFullscreenSessionLayout(
     sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
     scaleMode: ScaleMode,
     scanlinesEnabled: Boolean,
     keepScreenOn: Boolean,
@@ -1844,6 +2039,7 @@ private fun LandscapeFullscreenSessionLayout(
             ) {
                 PasteEnabledEmulatorRenderHost(
                     sessionRepository = sessionRepository,
+                    emulatorSettings = emulatorSettings,
                     scaleMode = scaleMode,
                     scanlinesEnabled = scanlinesEnabled,
                     keepScreenOn = keepScreenOn,
@@ -1908,6 +2104,57 @@ private fun CompactIconButton(
         modifier = modifier,
         enabled = enabled,
     )
+}
+
+@Composable
+private fun HoldableCompactTextButton(
+    label: String,
+    onPressed: () -> Unit,
+    onReleased: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val shape = RoundedCornerShape(6.dp)
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), shape)
+            .background(
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.surface
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                },
+                shape = shape,
+            )
+            .pointerInput(enabled) {
+                if (!enabled) {
+                    return@pointerInput
+                }
+                detectTapGestures(
+                    onPress = {
+                        onPressed()
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            onReleased()
+                        }
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+            },
+        )
+    }
 }
 
 @Composable
@@ -1980,6 +2227,8 @@ private fun AndroidKeyboardPanel(
 
 @Composable
 private fun JoystickFooterControls(
+    settings: EmulatorSettings,
+    onPortStatusPressed: (JoystickPort) -> Unit,
     onToggleInputMode: () -> Unit,
     onToggleInputLongPress: () -> Unit,
     toggleIconResId: Int,
@@ -1987,17 +2236,242 @@ private fun JoystickFooterControls(
     compact: Boolean,
 ) {
     val buttonSize = if (compact) 44.dp else 52.dp
-    ShellIconButton(
-        iconResId = toggleIconResId,
-        contentDescription = toggleIconDescription,
-        onClick = onToggleInputMode,
-        onLongClick = onToggleInputLongPress,
-        longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
-        modifier = Modifier
-            .testTag("toggle-input-button")
-            .size(buttonSize),
-        height = buttonSize,
-    )
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ShellIconButton(
+            iconResId = toggleIconResId,
+            contentDescription = toggleIconDescription,
+            onClick = onToggleInputMode,
+            onLongClick = onToggleInputLongPress,
+            longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
+            modifier = Modifier
+                .testTag("toggle-input-button")
+                .size(buttonSize),
+            height = buttonSize,
+        )
+        PortStatusStrip(
+            settings = settings,
+            compact = compact,
+            onPortStatusPressed = onPortStatusPressed,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun PortStatusStrip(
+    settings: EmulatorSettings,
+    ports: List<JoystickPort> = JoystickPort.entries,
+    compact: Boolean,
+    onPortStatusPressed: (JoystickPort) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ports.forEach { port ->
+            PortStatusBadge(
+                port = port,
+                device = settings.inputDeviceFor(port),
+                controllerName = settings.hardwareControllerNameFor(port),
+                compact = compact,
+                onClick = { onPortStatusPressed(port) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PortStatusBadge(
+    port: JoystickPort,
+    device: PortInputDevice,
+    controllerName: String?,
+    compact: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val active = device != PortInputDevice.NONE
+    Surface(
+        modifier = modifier
+            .height(if (compact) 34.dp else 42.dp)
+            .clickable(onClick = onClick)
+            .testTag("port-${port.index + 1}-status"),
+        shape = DSubBadgeShape,
+        color = if (active) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        contentColor = if (active) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        tonalElevation = if (active) 2.dp else 0.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = if (active) 0.55f else 0.3f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 2.dp, vertical = if (compact) 3.dp else 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "P${port.index + 1}",
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+            )
+            Text(
+                text = device.toPortCode(controllerName),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private data class HardwareControllerOption(
+    val id: String,
+    val name: String,
+    val device: PortInputDevice,
+)
+
+private fun connectedHardwareControllerOptions(): List<HardwareControllerOption> {
+    return InputDevice.getDeviceIds()
+        .toList()
+        .mapNotNull(InputDevice::getDevice)
+        .filter { device ->
+            device.sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
+                device.sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
+        }
+        .map { device ->
+            HardwareControllerOption(
+                id = device.descriptor.takeIf { it.isNotBlank() } ?: "device:${device.id}",
+                name = device.name.takeIf { it.isNotBlank() } ?: "Controller ${device.id}",
+                device = device.toPortInputDevice(),
+            )
+        }
+        .distinctBy { it.id }
+        .sortedBy { it.name.lowercase() }
+}
+
+private fun InputDevice.toPortInputDevice(): PortInputDevice {
+    val deviceName = name.lowercase()
+    return if ("bluetooth" in deviceName || "wireless" in deviceName || "bt" in deviceName) {
+        PortInputDevice.BLUETOOTH_JOYSTICK
+    } else {
+        PortInputDevice.USB_JOYSTICK
+    }
+}
+
+@Composable
+private fun PortInputDeviceDialog(
+    port: JoystickPort,
+    selectedDevice: PortInputDevice,
+    selectedControllerId: String?,
+    onSelected: (PortInputDevice) -> Unit,
+    onHardwareControllerSelected: (HardwareControllerOption) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val hardwareControllers = remember { connectedHardwareControllerOptions() }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "Port ${port.index + 1} input",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    val genericDevices = PortInputDevice.entries.filterNot {
+                        it == PortInputDevice.BLUETOOTH_JOYSTICK || it == PortInputDevice.USB_JOYSTICK
+                    }
+                    genericDevices.forEachIndexed { index, device ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelected(device) }
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = device.toLabel(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f),
+                            )
+                            RadioButton(
+                                selected = device == selectedDevice,
+                                onClick = { onSelected(device) },
+                            )
+                        }
+                        if (index != genericDevices.lastIndex || hardwareControllers.isNotEmpty()) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        }
+                    }
+                    hardwareControllers.forEachIndexed { index, option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onHardwareControllerSelected(option) }
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = option.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = option.device.toLabel(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            RadioButton(
+                                selected = option.id == selectedControllerId,
+                                onClick = { onHardwareControllerSelected(option) },
+                            )
+                        }
+                        if (index != hardwareControllers.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        }
+                    }
+                }
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Close")
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -2076,6 +2550,9 @@ private fun FullScreenSettings(
     onStickyKeyboardFnChanged: (Boolean) -> Unit,
     onJoystickInputStyleSelected: (JoystickInputStyle) -> Unit,
     onJoystickHapticsChanged: (Boolean) -> Unit,
+    onPortInputDeviceSelected: (JoystickPort, PortInputDevice) -> Unit,
+    onMouseSpeedChanged: (Int) -> Unit,
+    onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onVideoStandardSelected: (VideoStandard) -> Unit,
     onUseFujiNet: () -> Unit,
@@ -2214,6 +2691,9 @@ private fun FullScreenSettings(
                         onStickyKeyboardFnChanged = onStickyKeyboardFnChanged,
                         onJoystickInputStyleSelected = onJoystickInputStyleSelected,
                         onJoystickHapticsChanged = onJoystickHapticsChanged,
+                        onPortInputDeviceSelected = onPortInputDeviceSelected,
+                        onMouseSpeedChanged = onMouseSpeedChanged,
+                        onTouchscreenMouseSensitivityChanged = onTouchscreenMouseSensitivityChanged,
                         onPauseOnAppSwitchChanged = onPauseOnAppSwitchChanged,
                         onResetToDefaults = onResetToDefaults,
                     )
@@ -2787,6 +3267,9 @@ private fun AppSettingsTab(
     onStickyKeyboardFnChanged: (Boolean) -> Unit,
     onJoystickInputStyleSelected: (JoystickInputStyle) -> Unit,
     onJoystickHapticsChanged: (Boolean) -> Unit,
+    onPortInputDeviceSelected: (JoystickPort, PortInputDevice) -> Unit,
+    onMouseSpeedChanged: (Int) -> Unit,
+    onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onResetToDefaults: () -> Unit,
 ) {
@@ -2868,6 +3351,74 @@ private fun AppSettingsTab(
                 checkedLabel = state.stickyKeyboardFnLabel,
                 onToggle = { onStickyKeyboardFnChanged(!state.settings.stickyKeyboardFnEnabled) },
                 testTagPrefix = "sticky-keyboard-fn",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Port 1",
+                value = state.settings.port1InputDevice.toLabel(),
+                subtitle = "Input device connected to joystick port 1.",
+                options = PortInputDevice.entries.map { device ->
+                    PickerOption(value = device, label = device.toLabel())
+                },
+                selectedValue = state.settings.port1InputDevice,
+                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_1, it) },
+                testTagPrefix = "port-1-input-device",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Port 2",
+                value = state.settings.port2InputDevice.toLabel(),
+                subtitle = "Input device connected to joystick port 2.",
+                options = PortInputDevice.entries.map { device ->
+                    PickerOption(value = device, label = device.toLabel())
+                },
+                selectedValue = state.settings.port2InputDevice,
+                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_2, it) },
+                testTagPrefix = "port-2-input-device",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Port 3",
+                value = state.settings.port3InputDevice.toLabel(),
+                subtitle = "Input device connected to joystick port 3.",
+                options = PortInputDevice.entries.map { device ->
+                    PickerOption(value = device, label = device.toLabel())
+                },
+                selectedValue = state.settings.port3InputDevice,
+                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_3, it) },
+                testTagPrefix = "port-3-input-device",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Port 4",
+                value = state.settings.port4InputDevice.toLabel(),
+                subtitle = "Input device connected to joystick port 4.",
+                options = PortInputDevice.entries.map { device ->
+                    PickerOption(value = device, label = device.toLabel())
+                },
+                selectedValue = state.settings.port4InputDevice,
+                onSelected = { onPortInputDeviceSelected(JoystickPort.PORT_4, it) },
+                testTagPrefix = "port-4-input-device",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsSliderRow(
+                title = "Mouse speed",
+                value = state.settings.mouseSpeed.toString(),
+                subtitle = "Atari800 mouse speed, from 1 to 9.",
+                sliderValue = state.settings.mouseSpeed.toFloat(),
+                onValueChange = { onMouseSpeedChanged(it.toInt().coerceIn(1, 9)) },
+                valueRange = 1f..9f,
+                steps = 7,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsSliderRow(
+                title = "Touchpad sensitivity",
+                value = state.settings.touchscreenMouseSensitivity.toSensitivityLabel(),
+                subtitle = "Scales touchscreen drag movement for ST and Amiga mouse modes.",
+                sliderValue = state.settings.touchscreenMouseSensitivity,
+                onValueChange = onTouchscreenMouseSensitivityChanged,
+                valueRange = 0.25f..4f,
+                steps = 14,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
@@ -3369,6 +3920,35 @@ private fun JoystickInputStyle.toLabel(): String = when (this) {
     JoystickInputStyle.DPAD_4_WAY -> "4-way D-pad"
 }
 
+private fun Float.toSensitivityLabel(): String = String.format("%.2fx", this)
+
+private fun PortInputDevice.toLabel(): String = when (this) {
+    PortInputDevice.NONE -> "None"
+    PortInputDevice.TOUCHSCREEN_JOYSTICK -> "TouchPad joystick"
+    PortInputDevice.BLUETOOTH_JOYSTICK -> "Bluetooth joystick"
+    PortInputDevice.USB_JOYSTICK -> "USB joystick"
+    PortInputDevice.ATARI_ST_MOUSE -> "Atari ST mouse"
+    PortInputDevice.AMIGA_MOUSE -> "Amiga mouse"
+}
+
+private fun PortInputDevice.toPortCode(controllerName: String? = null): String = when (this) {
+    PortInputDevice.NONE -> "--"
+    PortInputDevice.TOUCHSCREEN_JOYSTICK -> "PAD"
+    PortInputDevice.BLUETOOTH_JOYSTICK -> controllerName.toControllerPortCode("BT")
+    PortInputDevice.USB_JOYSTICK -> controllerName.toControllerPortCode("USB")
+    PortInputDevice.ATARI_ST_MOUSE -> "ST"
+    PortInputDevice.AMIGA_MOUSE -> "AMI"
+}
+
+private fun String?.toControllerPortCode(fallback: String): String {
+    val code = this
+        ?.filter { it.isLetterOrDigit() }
+        ?.take(4)
+        ?.uppercase()
+        ?.takeIf { it.isNotBlank() }
+    return code ?: fallback
+}
+
 private fun VideoStandard.toLabel(): String = when (this) {
     VideoStandard.NTSC -> "NTSC"
     VideoStandard.PAL -> "PAL"
@@ -3650,11 +4230,24 @@ private val PortraitInputDrawerContentThreshold = 56.dp
 private const val PortraitInputDrawerCollapseFraction = 0.02f
 private const val PortraitInputDrawerExpandSnapFraction = 0.98f
 private const val EmulatorDisplayAspectRatio = 4f / 3f
+private val DSubBadgeShape = GenericShape { size, _ ->
+    val inset = size.width * 0.16f
+    moveTo(0f, 0f)
+    lineTo(size.width, 0f)
+    lineTo(size.width - inset, size.height)
+    lineTo(inset, size.height)
+    close()
+}
 private val PasteChipOffset = 8.dp
 private val PasteChipHeight = 38.dp
 private val PasteChipMaxWidth = 260.dp
 private const val PasteChipTimeoutMillis = 2_500L
 private const val PastePreviewMaxLength = 28
+private val TouchMouseTapSlop = 24.dp
+private const val TouchMouseTapTimeoutMillis = 350L
+private const val TouchMouseClickHoldMillis = 80L
+private const val MouseButtonLeft = 1
+private const val MouseButtonRight = 2
 
 private data class PortraitInputPanelMetrics(
     val totalHeight: androidx.compose.ui.unit.Dp,

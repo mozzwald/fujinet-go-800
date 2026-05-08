@@ -15,6 +15,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -51,8 +52,10 @@ import com.mantismoonlabs.fujinetgo800.input.HardwareKeyboardRouter
 import com.mantismoonlabs.fujinetgo800.input.AndroidAtariKeyMapper
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetSettingsBridge
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetWebViewActivity
+import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.SystemRomKind
+import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.settings.requestedOrientationFor
 import com.mantismoonlabs.fujinetgo800.session.EmulatorSessionService
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsViewModel
@@ -72,9 +75,11 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private var sessionRepository: SessionRepository? by mutableStateOf(null)
+    private var currentEmulatorSettings: EmulatorSettings by mutableStateOf(EmulatorSettings())
     private var emulationService: EmulatorSessionService? = null
     private var keyboardResetTrigger by mutableStateOf(0)
     private var isBound = false
@@ -228,6 +233,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 emulatorSettingsRepository.settings.collectLatest { settings ->
+                    currentEmulatorSettings = settings
                     requestedOrientation = requestedOrientationFor(settings.orientationMode)
                 }
             }
@@ -287,7 +293,7 @@ class MainActivity : ComponentActivity() {
         val repository = sessionRepository
         val state = repository?.state?.value
         if (repository != null && state != null) {
-            if (gameControllerMapper.handleButtonEvent(event, state, repository)) {
+            if (gameControllerMapper.handleButtonEvent(event, state, currentEmulatorSettings, repository)) {
                 return true
             }
             if (hardwareKeyboardRouter.route(event, state, repository)) {
@@ -300,10 +306,45 @@ class MainActivity : ComponentActivity() {
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         val repository = sessionRepository
         val state = repository?.state?.value
-        if (repository != null && state != null && gameControllerMapper.handleMotionEvent(event, state, repository)) {
-            return true
+        if (repository != null && state != null) {
+            if (handleHardwareMouseEvent(event, state, repository)) {
+                return true
+            }
+            if (gameControllerMapper.handleMotionEvent(event, state, currentEmulatorSettings, repository)) {
+                return true
+            }
         }
         return super.onGenericMotionEvent(event)
+    }
+
+    private fun handleHardwareMouseEvent(
+        event: MotionEvent,
+        state: com.mantismoonlabs.fujinetgo800.session.SessionState,
+        repository: SessionRepository,
+    ): Boolean {
+        if (state !is com.mantismoonlabs.fujinetgo800.session.SessionState.Running) {
+            return false
+        }
+        if (currentEmulatorSettings.mousePort() == null) {
+            return false
+        }
+        if (event.source and InputDevice.SOURCE_MOUSE != InputDevice.SOURCE_MOUSE) {
+            return false
+        }
+        val dx = event.getAxisValue(MotionEvent.AXIS_RELATIVE_X).roundToInt()
+        val dy = event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y).roundToInt()
+        val buttons = event.buttonState.toAtariMouseButtons()
+        if (
+            dx == 0 &&
+            dy == 0 &&
+            buttons == 0 &&
+            event.actionMasked != MotionEvent.ACTION_BUTTON_RELEASE &&
+            event.actionMasked != MotionEvent.ACTION_UP
+        ) {
+            return false
+        }
+        repository.setMouseState(dx, dy, buttons)
+        return true
     }
 
     private fun enterImmersiveMode() {
@@ -781,4 +822,18 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
         private const val ExternalStorageProviderAuthority = "com.android.externalstorage.documents"
     }
+}
+
+private fun Int.toAtariMouseButtons(): Int {
+    var buttons = 0
+    if (this and MotionEvent.BUTTON_PRIMARY != 0) {
+        buttons = buttons or 1
+    }
+    if (this and MotionEvent.BUTTON_SECONDARY != 0) {
+        buttons = buttons or 2
+    }
+    if (this and MotionEvent.BUTTON_TERTIARY != 0) {
+        buttons = buttons or 4
+    }
+    return buttons
 }

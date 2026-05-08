@@ -32,6 +32,22 @@ enum class JoystickInputStyle {
     DPAD_4_WAY,
 }
 
+enum class JoystickPort(val index: Int) {
+    PORT_1(0),
+    PORT_2(1),
+    PORT_3(2),
+    PORT_4(3),
+}
+
+enum class PortInputDevice {
+    NONE,
+    TOUCHSCREEN_JOYSTICK,
+    BLUETOOTH_JOYSTICK,
+    USB_JOYSTICK,
+    ATARI_ST_MOUSE,
+    AMIGA_MOUSE,
+}
+
 enum class VideoStandard {
     NTSC,
     PAL,
@@ -132,6 +148,20 @@ data class EmulatorSettings(
     val stickyKeyboardFnEnabled: Boolean = false,
     val joystickHapticsEnabled: Boolean = true,
     val joystickInputStyle: JoystickInputStyle = JoystickInputStyle.STICK_8_WAY,
+    val port1InputDevice: PortInputDevice = PortInputDevice.TOUCHSCREEN_JOYSTICK,
+    val port2InputDevice: PortInputDevice = PortInputDevice.NONE,
+    val port3InputDevice: PortInputDevice = PortInputDevice.NONE,
+    val port4InputDevice: PortInputDevice = PortInputDevice.NONE,
+    val port1HardwareControllerId: String? = null,
+    val port2HardwareControllerId: String? = null,
+    val port3HardwareControllerId: String? = null,
+    val port4HardwareControllerId: String? = null,
+    val port1HardwareControllerName: String? = null,
+    val port2HardwareControllerName: String? = null,
+    val port3HardwareControllerName: String? = null,
+    val port4HardwareControllerName: String? = null,
+    val mouseSpeed: Int = 3,
+    val touchscreenMouseSensitivity: Float = 1.5f,
     val videoStandard: VideoStandard = VideoStandard.NTSC,
     val ntscFilter: NtscFilterSettings = NtscFilterSettings(),
     val xlxeRomPath: String? = null,
@@ -187,4 +217,159 @@ fun EmulatorSettings.normalizedMachineMemory(): EmulatorSettings {
     } else {
         copy(memoryProfile = machineType.defaultMemoryProfile())
     }
+}
+
+fun EmulatorSettings.inputDeviceFor(port: JoystickPort): PortInputDevice = when (port) {
+    JoystickPort.PORT_1 -> port1InputDevice
+    JoystickPort.PORT_2 -> port2InputDevice
+    JoystickPort.PORT_3 -> port3InputDevice
+    JoystickPort.PORT_4 -> port4InputDevice
+}
+
+fun EmulatorSettings.hardwareControllerIdFor(port: JoystickPort): String? = when (port) {
+    JoystickPort.PORT_1 -> port1HardwareControllerId
+    JoystickPort.PORT_2 -> port2HardwareControllerId
+    JoystickPort.PORT_3 -> port3HardwareControllerId
+    JoystickPort.PORT_4 -> port4HardwareControllerId
+}
+
+fun EmulatorSettings.hardwareControllerNameFor(port: JoystickPort): String? = when (port) {
+    JoystickPort.PORT_1 -> port1HardwareControllerName
+    JoystickPort.PORT_2 -> port2HardwareControllerName
+    JoystickPort.PORT_3 -> port3HardwareControllerName
+    JoystickPort.PORT_4 -> port4HardwareControllerName
+}
+
+fun EmulatorSettings.withInputDeviceFor(port: JoystickPort, device: PortInputDevice): EmulatorSettings {
+    var updated = this
+    if (device == PortInputDevice.TOUCHSCREEN_JOYSTICK) {
+        JoystickPort.entries.forEach { existingPort ->
+            if (updated.inputDeviceFor(existingPort) == PortInputDevice.TOUCHSCREEN_JOYSTICK) {
+                updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
+            }
+        }
+    } else if (device.isMouse) {
+        JoystickPort.entries.forEach { existingPort ->
+            if (updated.inputDeviceFor(existingPort).isMouse) {
+                updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
+            }
+        }
+    }
+    return when (port) {
+        JoystickPort.PORT_1 -> updated.copy(port1InputDevice = device)
+        JoystickPort.PORT_2 -> updated.copy(port2InputDevice = device)
+        JoystickPort.PORT_3 -> updated.copy(port3InputDevice = device)
+        JoystickPort.PORT_4 -> updated.copy(port4InputDevice = device)
+    }.clearHardwareControllerForPortIfNeeded(port, device).normalizedInputPorts()
+}
+
+fun EmulatorSettings.withHardwareControllerFor(
+    port: JoystickPort,
+    device: PortInputDevice,
+    controllerId: String,
+    controllerName: String,
+): EmulatorSettings {
+    var updated = withInputDeviceFor(port, device)
+    JoystickPort.entries.forEach { existingPort ->
+        if (existingPort != port && updated.hardwareControllerIdFor(existingPort) == controllerId) {
+            updated = updated.setHardwareControllerForPort(existingPort, null, null)
+            if (updated.inputDeviceFor(existingPort) == PortInputDevice.BLUETOOTH_JOYSTICK ||
+                updated.inputDeviceFor(existingPort) == PortInputDevice.USB_JOYSTICK
+            ) {
+                updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
+            }
+        }
+    }
+    return updated
+        .setInputDeviceForPort(port, device)
+        .setHardwareControllerForPort(port, controllerId, controllerName)
+        .normalizedInputPorts()
+}
+
+fun EmulatorSettings.normalizedInputPorts(): EmulatorSettings {
+    var normalized = this.copy(
+        mouseSpeed = mouseSpeed.coerceIn(1, 9),
+        touchscreenMouseSensitivity = touchscreenMouseSensitivity.coerceIn(0.25f, 4f),
+    )
+    var touchscreenSeen = false
+    var mouseSeen = false
+    JoystickPort.entries.forEach { port ->
+        val device = normalized.inputDeviceFor(port)
+        val replacement = when {
+            device == PortInputDevice.TOUCHSCREEN_JOYSTICK && touchscreenSeen -> PortInputDevice.NONE
+            device == PortInputDevice.TOUCHSCREEN_JOYSTICK -> {
+                touchscreenSeen = true
+                device
+            }
+            device.isMouse && mouseSeen -> PortInputDevice.NONE
+            device.isMouse -> {
+                mouseSeen = true
+                device
+            }
+            else -> device
+        }
+        if (replacement != device) {
+            normalized = normalized.setInputDeviceForPort(port, replacement)
+        }
+        if (replacement != PortInputDevice.BLUETOOTH_JOYSTICK && replacement != PortInputDevice.USB_JOYSTICK) {
+            normalized = normalized.setHardwareControllerForPort(port, null, null)
+        }
+    }
+    return normalized
+}
+
+fun EmulatorSettings.touchscreenJoystickPort(): JoystickPort? {
+    return JoystickPort.entries.firstOrNull { port ->
+        inputDeviceFor(port) == PortInputDevice.TOUCHSCREEN_JOYSTICK
+    }
+}
+
+fun EmulatorSettings.hardwareJoystickPort(): JoystickPort? {
+    return JoystickPort.entries.firstOrNull { port ->
+        val device = inputDeviceFor(port)
+        device == PortInputDevice.BLUETOOTH_JOYSTICK || device == PortInputDevice.USB_JOYSTICK
+    }
+}
+
+fun EmulatorSettings.mousePort(): JoystickPort? {
+    return JoystickPort.entries.firstOrNull { port -> inputDeviceFor(port).isMouse }
+}
+
+fun EmulatorSettings.mouseDevice(): PortInputDevice? {
+    return mousePort()?.let(::inputDeviceFor)
+}
+
+val PortInputDevice.isMouse: Boolean
+    get() = this == PortInputDevice.ATARI_ST_MOUSE || this == PortInputDevice.AMIGA_MOUSE
+
+private fun EmulatorSettings.setInputDeviceForPort(
+    port: JoystickPort,
+    device: PortInputDevice,
+): EmulatorSettings = when (port) {
+    JoystickPort.PORT_1 -> copy(port1InputDevice = device)
+    JoystickPort.PORT_2 -> copy(port2InputDevice = device)
+    JoystickPort.PORT_3 -> copy(port3InputDevice = device)
+    JoystickPort.PORT_4 -> copy(port4InputDevice = device)
+}
+
+private fun EmulatorSettings.clearHardwareControllerForPortIfNeeded(
+    port: JoystickPort,
+    device: PortInputDevice,
+): EmulatorSettings {
+    return if (device == PortInputDevice.BLUETOOTH_JOYSTICK || device == PortInputDevice.USB_JOYSTICK) {
+        this
+    } else {
+        setHardwareControllerForPort(port, null, null)
+    }
+}
+
+private fun EmulatorSettings.setHardwareControllerForPort(
+    port: JoystickPort,
+    controllerId: String?,
+    controllerName: String?,
+): EmulatorSettings = when (port) {
+    JoystickPort.PORT_1 -> copy(port1HardwareControllerId = controllerId, port1HardwareControllerName = controllerName)
+    JoystickPort.PORT_2 -> copy(port2HardwareControllerId = controllerId, port2HardwareControllerName = controllerName)
+    JoystickPort.PORT_3 -> copy(port3HardwareControllerId = controllerId, port3HardwareControllerName = controllerName)
+    JoystickPort.PORT_4 -> copy(port4HardwareControllerId = controllerId, port4HardwareControllerName = controllerName)
 }

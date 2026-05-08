@@ -76,6 +76,7 @@ sealed interface SessionCommand {
     data class PasteText(val text: String) : SessionCommand
     data class SetConsoleKeys(val start: Boolean, val select: Boolean, val option: Boolean) : SessionCommand
     data class SetJoystickState(val port: Int, val x: Float, val y: Float, val fire: Boolean) : SessionCommand
+    data class SetMouseState(val deltaX: Int, val deltaY: Int, val buttonsMask: Int) : SessionCommand
     data object HostStarted : SessionCommand
     data object HostStopped : SessionCommand
     data object RecoverLocalOnly : SessionCommand

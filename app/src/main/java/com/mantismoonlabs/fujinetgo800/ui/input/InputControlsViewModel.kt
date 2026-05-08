@@ -14,6 +14,7 @@ import com.mantismoonlabs.fujinetgo800.settings.ControlMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
+import com.mantismoonlabs.fujinetgo800.settings.touchscreenJoystickPort
 import com.mantismoonlabs.fujinetgo800.session.SessionRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +35,7 @@ data class InputControlsUiState(
     val joystickInputStyle: JoystickInputStyle = JoystickInputStyle.STICK_8_WAY,
     val joystickHapticsEnabled: Boolean = true,
     val keyboardHapticsEnabled: Boolean = true,
+    val settings: EmulatorSettings = EmulatorSettings(),
 )
 
 class InputControlsViewModel(
@@ -49,6 +51,9 @@ class InputControlsViewModel(
     private val pendingReleaseJobs = mutableMapOf<AtariKeyMapping, Job>()
     private val consoleKeysPressed = linkedSetOf<AtariConsoleKey>()
     private val joystickDispatcher = TouchJoystickDispatcher(
+        portProvider = {
+            uiState.value.settings.touchscreenJoystickPort()?.index
+        },
         onDispatch = { port, x, y, fire ->
             sessionRepository.setJoystickState(port = port, x = x, y = y, fire = fire)
         },
@@ -250,6 +255,7 @@ class InputControlsViewModel(
             joystickInputStyle = joystickInputStyle,
             joystickHapticsEnabled = joystickHapticsEnabled,
             keyboardHapticsEnabled = keyboardHapticsEnabled,
+            settings = this,
         )
     }
 
@@ -289,7 +295,7 @@ class InputControlsViewModel(
 
 internal class TouchJoystickDispatcher(
     private val onDispatch: (port: Int, x: Float, y: Float, fire: Boolean) -> Unit,
-    private val port: Int = 0,
+    private val portProvider: () -> Int? = { 0 },
 ) {
     private var xAxis = 0f
     private var yAxis = 0f
@@ -325,6 +331,7 @@ internal class TouchJoystickDispatcher(
     }
 
     private fun dispatch() {
+        val port = portProvider() ?: return
         onDispatch(port, xAxis, yAxis, firePressed)
     }
 }

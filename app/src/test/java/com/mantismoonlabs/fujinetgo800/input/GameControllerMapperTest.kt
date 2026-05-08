@@ -2,6 +2,10 @@ package com.mantismoonlabs.fujinetgo800.input
 
 import android.view.InputDevice
 import android.view.KeyEvent
+import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
+import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
+import com.mantismoonlabs.fujinetgo800.settings.withHardwareControllerFor
 import com.mantismoonlabs.fujinetgo800.session.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,6 +27,7 @@ class GameControllerMapperTest {
                 hatY = 0f,
             ),
             sessionState = runningSession(),
+            settings = hardwareJoystickSettings(),
             onJoystickState = { port, x, y, fire -> calls += ControllerDispatchCall(port, x, y, fire) },
         )
 
@@ -41,6 +46,7 @@ class GameControllerMapperTest {
                 action = KeyEvent.ACTION_DOWN,
             ),
             sessionState = runningSession(),
+            settings = hardwareJoystickSettings(),
             onJoystickState = { port, x, y, fire -> calls += ControllerDispatchCall(port, x, y, fire) },
         )
         mapper.handleButton(
@@ -50,6 +56,7 @@ class GameControllerMapperTest {
                 action = KeyEvent.ACTION_UP,
             ),
             sessionState = runningSession(),
+            settings = hardwareJoystickSettings(),
             onJoystickState = { port, x, y, fire -> calls += ControllerDispatchCall(port, x, y, fire) },
         )
 
@@ -62,6 +69,30 @@ class GameControllerMapperTest {
         )
     }
 
+    @Test
+    fun assignedControllersRouteToTheirPorts() {
+        val calls = mutableListOf<ControllerDispatchCall>()
+        val settings = EmulatorSettings()
+            .withHardwareControllerFor(JoystickPort.PORT_2, PortInputDevice.BLUETOOTH_JOYSTICK, "pad-a", "Pad A")
+            .withHardwareControllerFor(JoystickPort.PORT_3, PortInputDevice.USB_JOYSTICK, "pad-b", "Pad B")
+
+        mapper.handleMotion(
+            motion = GameControllerMotion(
+                source = InputDevice.SOURCE_JOYSTICK,
+                controllerId = "pad-b",
+                axisX = 0.5f,
+                axisY = 0.25f,
+                hatX = 0f,
+                hatY = 0f,
+            ),
+            sessionState = runningSession(),
+            settings = settings,
+            onJoystickState = { port, x, y, fire -> calls += ControllerDispatchCall(port, x, y, fire) },
+        )
+
+        assertEquals(listOf(ControllerDispatchCall(2, 0.5f, 0.25f, false)), calls)
+    }
+
     private fun runningSession(): SessionState.Running {
         return SessionState.Running(
             sessionToken = 1L,
@@ -69,6 +100,10 @@ class GameControllerMapperTest {
             surfaceAttached = true,
             launchMode = com.mantismoonlabs.fujinetgo800.settings.LaunchMode.LOCAL_ONLY,
         )
+    }
+
+    private fun hardwareJoystickSettings(): EmulatorSettings {
+        return EmulatorSettings(port1InputDevice = PortInputDevice.BLUETOOTH_JOYSTICK)
     }
 }
 

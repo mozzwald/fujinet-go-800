@@ -3,6 +3,7 @@ package com.mantismoonlabs.fujinetgo800.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -52,6 +53,20 @@ internal object EmulatorSettingsPreferenceKeys {
     val stickyKeyboardFnEnabled = booleanPreferencesKey("sticky_keyboard_fn_enabled")
     val joystickHapticsEnabled = booleanPreferencesKey("joystick_haptics_enabled")
     val joystickInputStyle = stringPreferencesKey("joystick_input_style")
+    val port1InputDevice = stringPreferencesKey("port_1_input_device")
+    val port2InputDevice = stringPreferencesKey("port_2_input_device")
+    val port3InputDevice = stringPreferencesKey("port_3_input_device")
+    val port4InputDevice = stringPreferencesKey("port_4_input_device")
+    val port1HardwareControllerId = stringPreferencesKey("port_1_hardware_controller_id")
+    val port2HardwareControllerId = stringPreferencesKey("port_2_hardware_controller_id")
+    val port3HardwareControllerId = stringPreferencesKey("port_3_hardware_controller_id")
+    val port4HardwareControllerId = stringPreferencesKey("port_4_hardware_controller_id")
+    val port1HardwareControllerName = stringPreferencesKey("port_1_hardware_controller_name")
+    val port2HardwareControllerName = stringPreferencesKey("port_2_hardware_controller_name")
+    val port3HardwareControllerName = stringPreferencesKey("port_3_hardware_controller_name")
+    val port4HardwareControllerName = stringPreferencesKey("port_4_hardware_controller_name")
+    val mouseSpeed = intPreferencesKey("mouse_speed")
+    val touchscreenMouseSensitivity = floatPreferencesKey("touchscreen_mouse_sensitivity")
     val videoStandard = stringPreferencesKey("video_standard")
     val ntscFilterPreset = stringPreferencesKey("ntsc_filter_preset")
     val ntscFilterSharpness = floatPreferencesKey("ntsc_filter_sharpness")
@@ -254,6 +269,39 @@ class EmulatorSettingsRepository private constructor(
         }
     }
 
+    suspend fun updatePortInputDevice(port: JoystickPort, device: PortInputDevice) {
+        dataStore.edit { preferences ->
+            val settings = preferences.toEmulatorSettings()
+                .withInputDeviceFor(port, device)
+            preferences.writeInputPortSettings(settings)
+        }
+    }
+
+    suspend fun updatePortHardwareController(
+        port: JoystickPort,
+        device: PortInputDevice,
+        controllerId: String,
+        controllerName: String,
+    ) {
+        dataStore.edit { preferences ->
+            val settings = preferences.toEmulatorSettings()
+                .withHardwareControllerFor(port, device, controllerId, controllerName)
+            preferences.writeInputPortSettings(settings)
+        }
+    }
+
+    suspend fun updateMouseSpeed(speed: Int) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.mouseSpeed] = speed.coerceIn(1, 9)
+        }
+    }
+
+    suspend fun updateTouchscreenMouseSensitivity(sensitivity: Float) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.touchscreenMouseSensitivity] = sensitivity.coerceIn(0.25f, 4f)
+        }
+    }
+
     suspend fun updateVideoStandard(videoStandard: VideoStandard) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.videoStandard] = videoStandard.name
@@ -435,6 +483,34 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
             key = EmulatorSettingsPreferenceKeys.joystickInputStyle,
             defaultValue = JoystickInputStyle.STICK_8_WAY,
         ),
+        port1InputDevice = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.port1InputDevice,
+            defaultValue = PortInputDevice.TOUCHSCREEN_JOYSTICK,
+        ),
+        port2InputDevice = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.port2InputDevice,
+            defaultValue = PortInputDevice.NONE,
+        ),
+        port3InputDevice = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.port3InputDevice,
+            defaultValue = PortInputDevice.NONE,
+        ),
+        port4InputDevice = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.port4InputDevice,
+            defaultValue = PortInputDevice.NONE,
+        ),
+        port1HardwareControllerId = this[EmulatorSettingsPreferenceKeys.port1HardwareControllerId],
+        port2HardwareControllerId = this[EmulatorSettingsPreferenceKeys.port2HardwareControllerId],
+        port3HardwareControllerId = this[EmulatorSettingsPreferenceKeys.port3HardwareControllerId],
+        port4HardwareControllerId = this[EmulatorSettingsPreferenceKeys.port4HardwareControllerId],
+        port1HardwareControllerName = this[EmulatorSettingsPreferenceKeys.port1HardwareControllerName],
+        port2HardwareControllerName = this[EmulatorSettingsPreferenceKeys.port2HardwareControllerName],
+        port3HardwareControllerName = this[EmulatorSettingsPreferenceKeys.port3HardwareControllerName],
+        port4HardwareControllerName = this[EmulatorSettingsPreferenceKeys.port4HardwareControllerName],
+        mouseSpeed = (this[EmulatorSettingsPreferenceKeys.mouseSpeed] ?: 3).coerceIn(1, 9),
+        touchscreenMouseSensitivity = (
+            this[EmulatorSettingsPreferenceKeys.touchscreenMouseSensitivity] ?: 1.5f
+            ).coerceIn(0.25f, 4f),
         videoStandard = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.videoStandard,
             defaultValue = VideoStandard.NTSC,
@@ -454,7 +530,33 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
         xlxeRomPath = this[EmulatorSettingsPreferenceKeys.xlxeRomPath],
         basicRomPath = this[EmulatorSettingsPreferenceKeys.basicRomPath],
         atari400800RomPath = this[EmulatorSettingsPreferenceKeys.atari400800RomPath],
-    )
+    ).normalizedInputPorts()
+}
+
+private fun MutablePreferences.writeInputPortSettings(settings: EmulatorSettings) {
+    this[EmulatorSettingsPreferenceKeys.port1InputDevice] = settings.port1InputDevice.name
+    this[EmulatorSettingsPreferenceKeys.port2InputDevice] = settings.port2InputDevice.name
+    this[EmulatorSettingsPreferenceKeys.port3InputDevice] = settings.port3InputDevice.name
+    this[EmulatorSettingsPreferenceKeys.port4InputDevice] = settings.port4InputDevice.name
+    writeNullableString(EmulatorSettingsPreferenceKeys.port1HardwareControllerId, settings.port1HardwareControllerId)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port2HardwareControllerId, settings.port2HardwareControllerId)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port3HardwareControllerId, settings.port3HardwareControllerId)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port4HardwareControllerId, settings.port4HardwareControllerId)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port1HardwareControllerName, settings.port1HardwareControllerName)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port2HardwareControllerName, settings.port2HardwareControllerName)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port3HardwareControllerName, settings.port3HardwareControllerName)
+    writeNullableString(EmulatorSettingsPreferenceKeys.port4HardwareControllerName, settings.port4HardwareControllerName)
+}
+
+private fun MutablePreferences.writeNullableString(
+    key: Preferences.Key<String>,
+    value: String?,
+) {
+    if (value.isNullOrBlank()) {
+        remove(key)
+    } else {
+        this[key] = value
+    }
 }
 
 private inline fun <reified T : Enum<T>> Preferences.getEnumOrDefault(

@@ -83,6 +83,17 @@ uint8_t stick_from_axes(float x, float y) {
     return INPUT_STICK_CENTRE;
 }
 
+int input_mouse_mode_from_setting(int mode) {
+    switch (mode) {
+        case 1:
+            return INPUT_MOUSE_AMIGA;
+        case 2:
+            return INPUT_MOUSE_ST;
+        default:
+            return INPUT_MOUSE_OFF;
+    }
+}
+
 void ReloadMachineRomsLocked(int machine_type, int memory_size_kb, bool basic_enabled) {
     const bool is_1200xl = machine_type == 1;
     const bool is_xegs = machine_type == 8;
@@ -578,6 +589,40 @@ void SessionRuntime::SetJoystickState(jint port, jfloat x, jfloat y, jboolean fi
     pending_joystick_dirty_[port] = true;
 }
 
+void SessionRuntime::SetMouseConfig(jint mode, jint port, jint speed) {
+    std::lock_guard<std::mutex> lock(core_mutex_);
+    mouse_mode_ = input_mouse_mode_from_setting(mode);
+    mouse_port_ = std::max(0, std::min(3, static_cast<int>(port)));
+    mouse_speed_ = std::max(1, std::min(9, static_cast<int>(speed)));
+    INPUT_mouse_mode = mouse_mode_;
+    INPUT_mouse_port = mouse_port_;
+    INPUT_mouse_speed = mouse_speed_;
+    INPUT_direct_mouse = 0;
+    if (mouse_mode_ == INPUT_MOUSE_OFF) {
+        std::lock_guard<std::mutex> input_lock(input_mutex_);
+        pending_mouse_delta_x_ = 0;
+        pending_mouse_delta_y_ = 0;
+        pending_mouse_buttons_ = 0;
+        pending_mouse_dirty_ = true;
+    }
+}
+
+void SessionRuntime::SetMouseState(jint delta_x, jint delta_y, jint buttons_mask) {
+    std::lock_guard<std::mutex> lock(input_mutex_);
+    if (delta_x == 0 && delta_y == 0) {
+        pending_mouse_delta_x_ = 0;
+        pending_mouse_delta_y_ = 0;
+        if ((static_cast<int>(buttons_mask) & 0x07) == 0) {
+            pending_mouse_center_requested_ = true;
+        }
+    } else {
+        pending_mouse_delta_x_ += static_cast<int>(delta_x);
+        pending_mouse_delta_y_ += static_cast<int>(delta_y);
+    }
+    pending_mouse_buttons_ = static_cast<int>(buttons_mask) & 0x07;
+    pending_mouse_dirty_ = true;
+}
+
 void SessionRuntime::RenderFrame(JNIEnv* env, jobject buffer) {
     std::lock_guard<std::mutex> lock(core_mutex_);
     ApplyPendingControlStateLocked();
@@ -770,6 +815,10 @@ void SessionRuntime::InitializeCore() {
         ResetQueuedAudioLocked();
         ApplyPatchSettingsLocked();
         ApplyArtifactingLocked();
+        INPUT_mouse_mode = mouse_mode_;
+        INPUT_mouse_port = mouse_port_;
+        INPUT_mouse_speed = mouse_speed_;
+        INPUT_direct_mouse = 0;
         FujiNetAndroid_ClearAudio();
         Atari800_Coldstart();
         LOGI("Atari config requestedMachine=%s(%d) requestedRam=%d effectiveMachine=%s(%d) effectiveRam=%d basicDisabled=%d builtinGame=%d keyboardLeds=%d fKeys=%d",
@@ -991,6 +1040,25 @@ void SessionRuntime::ApplyPendingJoystickStateLocked() {
     }
 }
 
+void SessionRuntime::ApplyPendingMouseStateLocked() {
+    bool center_requested = false;
+    std::lock_guard<std::mutex> input_lock(input_mutex_);
+    if (!pending_mouse_dirty_) {
+        return;
+    }
+    INPUT_mouse_delta_x = pending_mouse_delta_x_;
+    INPUT_mouse_delta_y = pending_mouse_delta_y_;
+    INPUT_mouse_buttons = pending_mouse_buttons_;
+    center_requested = pending_mouse_center_requested_;
+    pending_mouse_delta_x_ = 0;
+    pending_mouse_delta_y_ = 0;
+    pending_mouse_center_requested_ = false;
+    pending_mouse_dirty_ = false;
+    if (center_requested) {
+        INPUT_CenterMousePointer();
+    }
+}
+
 void SessionRuntime::ResetQueuedAudioLocked() {
     std::lock_guard<std::mutex> audio_lock(audio_mutex_);
     const size_t desired_capacity = std::max<size_t>(static_cast<size_t>(sample_rate_ / 3), 4096);
@@ -1083,7 +1151,10 @@ void SessionRuntime::RunFrame(uint8_t* dst, int stride) {
     static uint32_t fallback_counter = 0;
     if (core_ready_ && Screen_atari != nullptr) {
         ApplyPendingJoystickStateLocked();
+        ApplyPendingMouseStateLocked();
         Atari800_Frame();
+        INPUT_mouse_delta_x = 0;
+        INPUT_mouse_delta_y = 0;
         ProduceAudioFrameLocked();
 
         const int src_width = Screen_WIDTH;

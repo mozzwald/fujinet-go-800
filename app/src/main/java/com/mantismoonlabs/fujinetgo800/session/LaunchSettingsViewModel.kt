@@ -15,19 +15,24 @@ import com.mantismoonlabs.fujinetgo800.settings.ArtifactingMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
+import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterSettings
 import com.mantismoonlabs.fujinetgo800.settings.OrientationMode
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
 import com.mantismoonlabs.fujinetgo800.settings.ScaleMode
 import com.mantismoonlabs.fujinetgo800.settings.SioPatchMode
 import com.mantismoonlabs.fujinetgo800.settings.SystemRomKind
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
 import com.mantismoonlabs.fujinetgo800.settings.defaultMemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.isValidFor
+import com.mantismoonlabs.fujinetgo800.settings.normalizedInputPorts
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
+import com.mantismoonlabs.fujinetgo800.settings.withHardwareControllerFor
+import com.mantismoonlabs.fujinetgo800.settings.withInputDeviceFor
 import com.mantismoonlabs.fujinetgo800.storage.RuntimePaths
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomDocumentStore
 import com.mantismoonlabs.fujinetgo800.storage.SystemRomSelection
@@ -127,7 +132,7 @@ class LaunchSettingsViewModel(
     init {
         viewModelScope.launch {
             persistedSettings.collect { settings ->
-                val normalized = settings.normalizedMachineMemory()
+                val normalized = settings.normalizedMachineMemory().normalizedInputPorts()
                 editableSettings.value = normalized
                 if (normalized != settings) {
                     settingsRepository.updateMemoryProfile(normalized.memoryProfile)
@@ -439,6 +444,54 @@ class LaunchSettingsViewModel(
         editableSettings.update { settings -> settings.copy(joystickInputStyle = style) }
         persistChange {
             settingsRepository.updateJoystickInputStyle(style)
+        }
+    }
+
+    fun onPortInputDeviceSelected(port: JoystickPort, device: PortInputDevice) {
+        editableSettings.update { settings -> settings.withInputDeviceFor(port, device) }
+        JoystickPort.entries.forEach { joystickPort ->
+            sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
+        }
+        dispatchRuntimeSettingsIfRunning()
+        persistChange {
+            settingsRepository.updatePortInputDevice(port, device)
+        }
+    }
+
+    fun onPortHardwareControllerSelected(
+        port: JoystickPort,
+        device: PortInputDevice,
+        controllerId: String,
+        controllerName: String,
+    ) {
+        editableSettings.update { settings ->
+            settings.withHardwareControllerFor(port, device, controllerId, controllerName)
+        }
+        JoystickPort.entries.forEach { joystickPort ->
+            sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
+        }
+        dispatchRuntimeSettingsIfRunning()
+        persistChange {
+            settingsRepository.updatePortHardwareController(port, device, controllerId, controllerName)
+        }
+    }
+
+    fun onMouseSpeedChanged(speed: Int) {
+        val normalizedSpeed = speed.coerceIn(1, 9)
+        editableSettings.update { settings -> settings.copy(mouseSpeed = normalizedSpeed) }
+        dispatchRuntimeSettingsIfRunning()
+        persistChange {
+            settingsRepository.updateMouseSpeed(normalizedSpeed)
+        }
+    }
+
+    fun onTouchscreenMouseSensitivityChanged(sensitivity: Float) {
+        val normalizedSensitivity = sensitivity.coerceIn(0.25f, 4f)
+        editableSettings.update { settings ->
+            settings.copy(touchscreenMouseSensitivity = normalizedSensitivity)
+        }
+        persistChange {
+            settingsRepository.updateTouchscreenMouseSensitivity(normalizedSensitivity)
         }
     }
 

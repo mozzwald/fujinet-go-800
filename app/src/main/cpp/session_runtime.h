@@ -63,6 +63,8 @@ public:
     void SetKeyState(jint akey_code, jboolean pressed);
     void SetConsoleKeys(jboolean start, jboolean select, jboolean option);
     void SetJoystickState(jint port, jfloat x, jfloat y, jboolean fire);
+    void SetMouseConfig(jint mode, jint port, jint speed);
+    void SetMouseState(jint delta_x, jint delta_y, jint buttons_mask);
     void RenderFrame(JNIEnv* env, jobject buffer);
     void FillAudioBuffer(JNIEnv* env, jshortArray audio_buffer);
     void SetGamepadState(jint player_index, jint buttons_mask, jfloat axis_x, jfloat axis_y);
@@ -82,6 +84,7 @@ private:
     void UpdateNtscFilterLocked();
     void ApplyPendingControlStateLocked();
     void ApplyPendingJoystickStateLocked();
+    void ApplyPendingMouseStateLocked();
     void ResetQueuedAudioLocked();
     void ProduceAudioFrameLocked();
     void EnqueueAudioLocked(const int16_t* samples, size_t sample_count);
@@ -127,6 +130,14 @@ private:
     std::array<float, 4> pending_joystick_y_{};
     std::array<bool, 4> pending_joystick_fire_{};
     std::array<bool, 4> pending_joystick_dirty_{};
+    int mouse_mode_ = 0;
+    int mouse_port_ = 0;
+    int mouse_speed_ = 3;
+    int pending_mouse_delta_x_ = 0;
+    int pending_mouse_delta_y_ = 0;
+    int pending_mouse_buttons_ = 0;
+    bool pending_mouse_dirty_ = false;
+    bool pending_mouse_center_requested_ = false;
     bool pending_reset_requested_ = false;
     bool pending_reset_notify_fuji_net_ = true;
     bool pending_warm_reset_requested_ = false;

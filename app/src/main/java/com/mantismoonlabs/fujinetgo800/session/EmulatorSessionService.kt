@@ -29,7 +29,10 @@ import com.mantismoonlabs.fujinetgo800.input.AndroidAtariKeyMapper
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
+import com.mantismoonlabs.fujinetgo800.settings.mouseDevice
+import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.storage.FujiNetRuntimeAssetInstaller
 import com.mantismoonlabs.fujinetgo800.storage.MediaApplyUseCase
 import com.mantismoonlabs.fujinetgo800.storage.MediaDocumentStore
@@ -125,6 +128,8 @@ class EmulatorSessionService : LifecycleService() {
                 setKeyState = EmulatorNative::setKeyState,
                 setConsoleKeys = EmulatorNative::setConsoleKeys,
                 setJoystickState = EmulatorNative::setJoystickState,
+                setMouseConfig = EmulatorNative::setMouseConfig,
+                setMouseState = EmulatorNative::setMouseState,
                 startAudio = { sampleRate ->
                     Log.i(LogTag, "runtime.startAudio sampleRate=$sampleRate")
                     ensureAudioPlayer(sampleRate).resume()
@@ -316,7 +321,8 @@ class EmulatorSessionService : LifecycleService() {
             SessionCommand.ClearAtari400800Rom,
             is SessionCommand.SetKeyState,
             is SessionCommand.SetConsoleKeys,
-            is SessionCommand.SetJoystickState -> {
+            is SessionCommand.SetJoystickState,
+            is SessionCommand.SetMouseState -> {
                 updateState(controller.dispatch(command))
                 syncSurfaceStateFromController()
             }
@@ -796,7 +802,7 @@ internal class EmulatorSessionController(
                     if (previousSettings.requiresRomReload(command.settings)) {
                         applyConfiguredRoms()
                     }
-                    applyRuntimeConfiguration()
+                    applyRuntimeConfiguration(previousSettings)
                     syncAudioState()
                 }
             }
@@ -882,6 +888,12 @@ internal class EmulatorSessionController(
             is SessionCommand.SetJoystickState -> {
                 if (state is SessionState.Running) {
                     runtime.setJoystickState(command.port, command.x, command.y, command.fire)
+                }
+            }
+
+            is SessionCommand.SetMouseState -> {
+                if (state is SessionState.Running) {
+                    runtime.setMouseState(command.deltaX, command.deltaY, command.buttonsMask)
                 }
             }
 
@@ -998,16 +1010,49 @@ internal class EmulatorSessionController(
         runtime.setNtscFilterConfig(runtimeSettings.ntscFilter)
         runtime.setArtifactingMode(runtimeSettings.artifactingMode)
         runtime.setStereoPokeyEnabled(runtimeSettings.stereoPokeyEnabled)
+        applyMouseConfiguration()
         applyLocalOnlyRuntimeConfiguration()
     }
 
-    private fun applyRuntimeConfiguration() {
-        runtime.setVideoStandard(runtimeSettings.videoStandard)
-        runtime.setTurboEnabled(runtimeSettings.launchMode == LaunchMode.LOCAL_ONLY && runtimeSettings.turboEnabled)
-        runtime.setNtscFilterConfig(runtimeSettings.ntscFilter)
-        runtime.setArtifactingMode(runtimeSettings.artifactingMode)
-        runtime.setStereoPokeyEnabled(runtimeSettings.stereoPokeyEnabled)
-        applyLocalOnlyRuntimeConfiguration()
+    private fun applyRuntimeConfiguration(previousSettings: EmulatorSettings? = null) {
+        if (previousSettings == null || previousSettings.videoStandard != runtimeSettings.videoStandard) {
+            runtime.setVideoStandard(runtimeSettings.videoStandard)
+        }
+        if (
+            previousSettings == null ||
+            previousSettings.launchMode != runtimeSettings.launchMode ||
+            previousSettings.turboEnabled != runtimeSettings.turboEnabled
+        ) {
+            runtime.setTurboEnabled(runtimeSettings.launchMode == LaunchMode.LOCAL_ONLY && runtimeSettings.turboEnabled)
+        }
+        if (previousSettings == null || previousSettings.ntscFilter != runtimeSettings.ntscFilter) {
+            runtime.setNtscFilterConfig(runtimeSettings.ntscFilter)
+        }
+        if (previousSettings == null || previousSettings.artifactingMode != runtimeSettings.artifactingMode) {
+            runtime.setArtifactingMode(runtimeSettings.artifactingMode)
+        }
+        if (previousSettings == null || previousSettings.stereoPokeyEnabled != runtimeSettings.stereoPokeyEnabled) {
+            runtime.setStereoPokeyEnabled(runtimeSettings.stereoPokeyEnabled)
+        }
+        if (previousSettings == null || previousSettings.mouseRuntimeConfigDiffersFrom(runtimeSettings)) {
+            applyMouseConfiguration()
+        }
+        if (previousSettings == null || previousSettings.localOnlyRuntimeConfigDiffersFrom(runtimeSettings)) {
+            applyLocalOnlyRuntimeConfiguration()
+        }
+    }
+
+    private fun applyMouseConfiguration() {
+        val mousePort = runtimeSettings.mousePort()
+        val mouseMode = runtimeSettings.mouseDevice().toNativeMouseMode()
+        runtime.setMouseConfig(
+            mouseMode,
+            mousePort?.index ?: 0,
+            runtimeSettings.mouseSpeed,
+        )
+        if (mouseMode == NativeMouseModeOff) {
+            runtime.setMouseState(0, 0, 0)
+        }
     }
 
     private fun applyLocalOnlyRuntimeConfiguration() {
@@ -1031,6 +1076,21 @@ internal class EmulatorSessionController(
         return xlxeRomPath != other.xlxeRomPath ||
             basicRomPath != other.basicRomPath ||
             atari400800RomPath != other.atari400800RomPath
+    }
+
+    private fun EmulatorSettings.mouseRuntimeConfigDiffersFrom(other: EmulatorSettings): Boolean {
+        return mousePort() != other.mousePort() ||
+            mouseDevice() != other.mouseDevice() ||
+            mouseSpeed != other.mouseSpeed
+    }
+
+    private fun EmulatorSettings.localOnlyRuntimeConfigDiffersFrom(other: EmulatorSettings): Boolean {
+        return launchMode != other.launchMode ||
+            sioPatchMode != other.sioPatchMode ||
+            hDevice1Path != other.hDevice1Path ||
+            hDevice2Path != other.hDevice2Path ||
+            hDevice3Path != other.hDevice3Path ||
+            hDevice4Path != other.hDevice4Path
     }
 }
 
@@ -1065,6 +1125,8 @@ internal data class EmulatorSessionRuntime(
     val setKeyState: (Int, Boolean) -> Unit,
     val setConsoleKeys: (Boolean, Boolean, Boolean) -> Unit,
     val setJoystickState: (Int, Float, Float, Boolean) -> Unit,
+    val setMouseConfig: (Int, Int, Int) -> Unit = { _, _, _ -> },
+    val setMouseState: (Int, Int, Int) -> Unit = { _, _, _ -> },
     val startAudio: (Int) -> Unit,
     val resumeAudio: () -> Unit,
     val pauseAudio: () -> Unit,
@@ -1073,6 +1135,16 @@ internal data class EmulatorSessionRuntime(
     val ensureFujiNetReady: suspend () -> Unit = {},
     val isFujiNetHealthy: suspend () -> Boolean = { true },
 )
+
+private const val NativeMouseModeOff = 0
+private const val NativeMouseModeAmiga = 1
+private const val NativeMouseModeAtariSt = 2
+
+private fun PortInputDevice?.toNativeMouseMode(): Int = when (this) {
+    PortInputDevice.AMIGA_MOUSE -> NativeMouseModeAmiga
+    PortInputDevice.ATARI_ST_MOUSE -> NativeMouseModeAtariSt
+    else -> NativeMouseModeOff
+}
 
 private fun Throwable.toFujiNetFailureReason(): FujiNetFailureReason = when (this) {
     is FujiNetStartupException -> when (failureMode) {

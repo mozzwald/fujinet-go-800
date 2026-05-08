@@ -1,9 +1,12 @@
 package com.mantismoonlabs.fujinetgo800.session
 
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
+import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterSettings
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
 import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
+import com.mantismoonlabs.fujinetgo800.settings.withInputDeviceFor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -114,6 +117,24 @@ class RuntimeSettingsRoutingTest {
             ),
             harness.ntscFilterSettingsCalls,
         )
+    }
+
+    @Test
+    fun runningSessionDoesNotReapplyVideoStandardForJoystickPortChange() {
+        val harness = RuntimeSettingsHarness()
+        val initialSettings = EmulatorSettings(launchMode = LaunchMode.LOCAL_ONLY)
+
+        harness.coldStart(persistedLaunchMode = LaunchMode.FUJINET_ENABLED)
+        harness.dispatch(SessionCommand.StartSession(SessionLaunchConfig(settings = initialSettings)))
+        harness.videoStandardCalls.clear()
+
+        harness.dispatch(
+            SessionCommand.ApplyRuntimeSettings(
+                initialSettings.withInputDeviceFor(JoystickPort.PORT_1, PortInputDevice.BLUETOOTH_JOYSTICK),
+            ),
+        )
+
+        assertEquals(emptyList<VideoStandard>(), harness.videoStandardCalls)
     }
 }
 

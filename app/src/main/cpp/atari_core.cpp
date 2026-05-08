@@ -413,6 +413,32 @@ Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setJoystickState(
 }
 
 extern "C"
+JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_nativeSetMouseConfig(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint mode,
+        jint port,
+        jint speed
+) {
+    (void)env;
+    SessionRuntime::Get().SetMouseConfig(mode, port, speed);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setMouseState(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint deltaX,
+        jint deltaY,
+        jint buttonsMask
+) {
+    (void)env;
+    SessionRuntime::Get().SetMouseState(deltaX, deltaY, buttonsMask);
+}
+
+extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_mantismoonlabs_fujinetgo800_core_FujiNetNative_nativeStartRuntime(
         JNIEnv* env,

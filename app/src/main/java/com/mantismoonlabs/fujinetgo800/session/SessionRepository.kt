@@ -40,6 +40,16 @@ interface SessionRepository {
             ),
         )
     }
+
+    fun setMouseState(deltaX: Int, deltaY: Int, buttonsMask: Int) {
+        dispatch(
+            SessionCommand.SetMouseState(
+                deltaX = deltaX,
+                deltaY = deltaY,
+                buttonsMask = buttonsMask,
+            ),
+        )
+    }
 }
 
 class ServiceBackedSessionRepository(
