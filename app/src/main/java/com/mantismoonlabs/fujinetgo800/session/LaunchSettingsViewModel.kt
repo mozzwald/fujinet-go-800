@@ -451,6 +451,7 @@ class LaunchSettingsViewModel(
         editableSettings.update { settings -> settings.withInputDeviceFor(port, device) }
         JoystickPort.entries.forEach { joystickPort ->
             sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
+            sessionRepository.setPaddleState(port = joystickPort.index, position = 0.5f, fire = false)
         }
         dispatchRuntimeSettingsIfRunning()
         persistChange {
@@ -469,6 +470,7 @@ class LaunchSettingsViewModel(
         }
         JoystickPort.entries.forEach { joystickPort ->
             sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
+            sessionRepository.setPaddleState(port = joystickPort.index, position = 0.5f, fire = false)
         }
         dispatchRuntimeSettingsIfRunning()
         persistChange {
@@ -492,6 +494,15 @@ class LaunchSettingsViewModel(
         }
         persistChange {
             settingsRepository.updateTouchscreenMouseSensitivity(normalizedSensitivity)
+        }
+    }
+
+    fun onPaddlePotMinimumChanged(value: Int) {
+        val normalizedValue = value.coerceIn(0, 228)
+        editableSettings.update { settings -> settings.copy(paddlePotMinimum = normalizedValue) }
+        dispatchRuntimeSettingsIfRunning()
+        persistChange {
+            settingsRepository.updatePaddlePotMinimum(normalizedValue)
         }
     }
 

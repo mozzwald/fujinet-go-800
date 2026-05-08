@@ -127,6 +127,7 @@ import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerNameFor
 import com.mantismoonlabs.fujinetgo800.settings.inputDeviceFor
 import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
+import com.mantismoonlabs.fujinetgo800.settings.paddlePort
 import com.mantismoonlabs.fujinetgo800.settings.validMemoryProfiles
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsViewModel
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsUiState
@@ -151,6 +152,8 @@ import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsUiState
 import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsViewModel
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickPadControl
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickControls
+import com.mantismoonlabs.fujinetgo800.ui.input.PaddleControls
+import com.mantismoonlabs.fujinetgo800.ui.input.PaddleSliderControl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -366,6 +369,11 @@ fun EmulatorScreen(
     var entryAutoStartPending by rememberSaveable { mutableStateOf(true) }
     var resetDialogVisible by rememberSaveable { mutableStateOf(false) }
     var portInputPickerPort by rememberSaveable { mutableStateOf<JoystickPort?>(null) }
+    var paddlePosition by rememberSaveable { mutableStateOf(0.5f) }
+    val onPaddlePositionChanged: (Float) -> Unit = { position ->
+        paddlePosition = position.coerceIn(0f, 1f)
+        inputControlsViewModel.onPaddlePositionChanged(paddlePosition)
+    }
 
     LaunchedEffect(entryAutoStartPending, sessionState) {
         if (
@@ -560,6 +568,7 @@ fun EmulatorScreen(
                 onPortHardwareControllerSelected = launchSettingsViewModel::onPortHardwareControllerSelected,
                 onMouseSpeedChanged = launchSettingsViewModel::onMouseSpeedChanged,
                 onTouchscreenMouseSensitivityChanged = launchSettingsViewModel::onTouchscreenMouseSensitivityChanged,
+                onPaddlePotMinimumChanged = launchSettingsViewModel::onPaddlePotMinimumChanged,
                 onPauseOnAppSwitchChanged = launchSettingsViewModel::onPauseOnAppSwitchChanged,
                 onVideoStandardSelected = launchSettingsViewModel::onVideoStandardSelected,
                 onUseFujiNet = {
@@ -765,6 +774,9 @@ fun EmulatorScreen(
                         onJoystickReleased = inputControlsViewModel::onJoystickReleased,
                         onFirePressed = inputControlsViewModel::onFirePressed,
                         onFireReleased = inputControlsViewModel::onFireReleased,
+                        paddleActive = launchSettingsState.settings.paddlePort() != null,
+                        paddlePosition = paddlePosition,
+                        onPaddlePositionChanged = onPaddlePositionChanged,
                         onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
                         onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
                         onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
@@ -1130,8 +1142,7 @@ fun EmulatorScreen(
                                             Spacer(modifier = Modifier.height(StandardSectionSpacing))
                                         }
                                         if (panelVisible) {
-                                            JoystickControls(
-                                                modifier = Modifier
+                                            val inputPanelModifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(panelHeight)
                                                     .padding(bottom = samsungPortraitJoystickBottomPadding)
@@ -1140,26 +1151,42 @@ fun EmulatorScreen(
                                                         density = density,
                                                         appliedBottomPadding = samsungPortraitJoystickBottomPadding,
                                                         onGapMeasured = { measuredJoystickBottomGap = it },
-                                                    ),
-                                                onJoystickMoved = inputControlsViewModel::onJoystickMoved,
-                                                onJoystickReleased = inputControlsViewModel::onJoystickReleased,
-                                                onFirePressed = inputControlsViewModel::onFirePressed,
-                                                onFireReleased = inputControlsViewModel::onFireReleased,
-                                                hapticsEnabled = inputControlsState.joystickHapticsEnabled,
-                                                joystickInputStyle = inputControlsState.joystickInputStyle,
-                                                compact = compactPortraitControls,
-                                                footerContent = {
-                                                    JoystickFooterControls(
-                                                        settings = launchSettingsState.settings,
-                                                        onPortStatusPressed = { portInputPickerPort = it },
-                                                        onToggleInputMode = toggleInputMode,
-                                                        onToggleInputLongPress = toggleInputPanelVisibility,
-                                                        toggleIconResId = toggleInputIconResId,
-                                                        toggleIconDescription = toggleInputDescription,
-                                                        compact = compactPortraitControls,
                                                     )
-                                                },
-                                            )
+                                            val footerContent: @Composable () -> Unit = {
+                                                JoystickFooterControls(
+                                                    settings = launchSettingsState.settings,
+                                                    onPortStatusPressed = { portInputPickerPort = it },
+                                                    onToggleInputMode = toggleInputMode,
+                                                    onToggleInputLongPress = toggleInputPanelVisibility,
+                                                    toggleIconResId = toggleInputIconResId,
+                                                    toggleIconDescription = toggleInputDescription,
+                                                    compact = compactPortraitControls,
+                                                )
+                                            }
+                                            if (launchSettingsState.settings.paddlePort() != null) {
+                                                PaddleControls(
+                                                    modifier = inputPanelModifier,
+                                                    position = paddlePosition,
+                                                    onPositionChanged = onPaddlePositionChanged,
+                                                    onFirePressed = inputControlsViewModel::onFirePressed,
+                                                    onFireReleased = inputControlsViewModel::onFireReleased,
+                                                    hapticsEnabled = inputControlsState.joystickHapticsEnabled,
+                                                    compact = compactPortraitControls,
+                                                    footerContent = footerContent,
+                                                )
+                                            } else {
+                                                JoystickControls(
+                                                    modifier = inputPanelModifier,
+                                                    onJoystickMoved = inputControlsViewModel::onJoystickMoved,
+                                                    onJoystickReleased = inputControlsViewModel::onJoystickReleased,
+                                                    onFirePressed = inputControlsViewModel::onFirePressed,
+                                                    onFireReleased = inputControlsViewModel::onFireReleased,
+                                                    hapticsEnabled = inputControlsState.joystickHapticsEnabled,
+                                                    joystickInputStyle = inputControlsState.joystickInputStyle,
+                                                    compact = compactPortraitControls,
+                                                    footerContent = footerContent,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1840,6 +1867,9 @@ private fun LandscapeJoystickSessionLayout(
     onJoystickReleased: () -> Unit,
     onFirePressed: () -> Unit,
     onFireReleased: () -> Unit,
+    paddleActive: Boolean,
+    paddlePosition: Float,
+    onPaddlePositionChanged: (Float) -> Unit,
     onToggleInputLongPress: () -> Unit,
     onFunctionKeyPressed: (AtariKeyMapping) -> Unit,
     onFunctionKeyReleased: (AtariKeyMapping) -> Unit,
@@ -1894,7 +1924,16 @@ private fun LandscapeJoystickSessionLayout(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    when (joystickInputStyle) {
+                    if (paddleActive) {
+                        PaddleSliderControl(
+                            position = paddlePosition,
+                            onPositionChanged = onPaddlePositionChanged,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(70.dp)
+                                .padding(horizontal = 16.dp),
+                        )
+                    } else when (joystickInputStyle) {
                         JoystickInputStyle.STICK_8_WAY -> {
                             JoystickPadControl(
                                 modifier = Modifier
@@ -2555,6 +2594,7 @@ private fun FullScreenSettings(
     onPortHardwareControllerSelected: (JoystickPort, PortInputDevice, String, String) -> Unit,
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
+    onPaddlePotMinimumChanged: (Int) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onVideoStandardSelected: (VideoStandard) -> Unit,
     onUseFujiNet: () -> Unit,
@@ -2697,6 +2737,7 @@ private fun FullScreenSettings(
                         onPortHardwareControllerSelected = onPortHardwareControllerSelected,
                         onMouseSpeedChanged = onMouseSpeedChanged,
                         onTouchscreenMouseSensitivityChanged = onTouchscreenMouseSensitivityChanged,
+                        onPaddlePotMinimumChanged = onPaddlePotMinimumChanged,
                         onPauseOnAppSwitchChanged = onPauseOnAppSwitchChanged,
                         onResetToDefaults = onResetToDefaults,
                     )
@@ -3274,6 +3315,7 @@ private fun AppSettingsTab(
     onPortHardwareControllerSelected: (JoystickPort, PortInputDevice, String, String) -> Unit,
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
+    onPaddlePotMinimumChanged: (Int) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onResetToDefaults: () -> Unit,
 ) {
@@ -3435,6 +3477,16 @@ private fun AppSettingsTab(
                 onValueChange = onTouchscreenMouseSensitivityChanged,
                 valueRange = 0.25f..4f,
                 steps = 14,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsSliderRow(
+                title = "Paddle POT minimum",
+                value = state.settings.paddlePotMinimum.toString(),
+                subtitle = "Fine tunes the right edge of the paddle range. 0 uses the full range; higher values narrow it.",
+                sliderValue = state.settings.paddlePotMinimum.toFloat(),
+                onValueChange = { onPaddlePotMinimumChanged(it.toInt().coerceIn(0, 228)) },
+                valueRange = 0f..228f,
+                steps = 227,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
@@ -3982,6 +4034,7 @@ private fun PortInputDevice.toLabel(): String = when (this) {
     PortInputDevice.USB_JOYSTICK -> "USB joystick"
     PortInputDevice.ATARI_ST_MOUSE -> "Atari ST mouse"
     PortInputDevice.AMIGA_MOUSE -> "Amiga mouse"
+    PortInputDevice.PADDLE -> "Paddle"
 }
 
 private fun PortInputDevice.toPortCode(controllerName: String? = null): String = when (this) {
@@ -3991,6 +4044,7 @@ private fun PortInputDevice.toPortCode(controllerName: String? = null): String =
     PortInputDevice.USB_JOYSTICK -> controllerName.toControllerPortCode("USB")
     PortInputDevice.ATARI_ST_MOUSE -> "ST"
     PortInputDevice.AMIGA_MOUSE -> "AMI"
+    PortInputDevice.PADDLE -> "PADL"
 }
 
 private fun String?.toControllerPortCode(fallback: String): String {

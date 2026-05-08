@@ -63,6 +63,8 @@ public:
     void SetKeyState(jint akey_code, jboolean pressed);
     void SetConsoleKeys(jboolean start, jboolean select, jboolean option);
     void SetJoystickState(jint port, jfloat x, jfloat y, jboolean fire);
+    void SetPaddleState(jint port, jfloat position, jboolean fire);
+    void SetPaddlePotMinimum(jint value);
     void SetMouseConfig(jint mode, jint port, jint speed);
     void SetMouseState(jint delta_x, jint delta_y, jint buttons_mask);
     void RenderFrame(JNIEnv* env, jobject buffer);
@@ -84,6 +86,7 @@ private:
     void UpdateNtscFilterLocked();
     void ApplyPendingControlStateLocked();
     void ApplyPendingJoystickStateLocked();
+    void ApplyPendingPaddleStateLocked();
     void ApplyPendingMouseStateLocked();
     void ResetQueuedAudioLocked();
     void ProduceAudioFrameLocked();
@@ -130,6 +133,10 @@ private:
     std::array<float, 4> pending_joystick_y_{};
     std::array<bool, 4> pending_joystick_fire_{};
     std::array<bool, 4> pending_joystick_dirty_{};
+    std::array<float, 4> pending_paddle_position_{};
+    std::array<bool, 4> pending_paddle_fire_{};
+    std::array<bool, 4> pending_paddle_dirty_{};
+    int paddle_pot_minimum_ = 114;
     int mouse_mode_ = 0;
     int mouse_port_ = 0;
     int mouse_speed_ = 3;

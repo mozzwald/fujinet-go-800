@@ -41,6 +41,16 @@ interface SessionRepository {
         )
     }
 
+    fun setPaddleState(port: Int, position: Float, fire: Boolean) {
+        dispatch(
+            SessionCommand.SetPaddleState(
+                port = port,
+                position = position,
+                fire = fire,
+            ),
+        )
+    }
+
     fun setMouseState(deltaX: Int, deltaY: Int, buttonsMask: Int) {
         dispatch(
             SessionCommand.SetMouseState(

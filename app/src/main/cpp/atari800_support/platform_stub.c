@@ -16,6 +16,7 @@
 
 static uint8_t g_stick_port[4] = {INPUT_STICK_CENTRE, INPUT_STICK_CENTRE, INPUT_STICK_CENTRE, INPUT_STICK_CENTRE};
 static uint8_t g_trig_port[4] = {1, 1, 1, 1}; // active low: 0 pressed
+static uint8_t g_pot_input[8] = {228, 228, 228, 228, 228, 228, 228, 228};
 static pthread_mutex_t g_sound_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int PLATFORM_Initialise(int *argc, char *argv[]) {
@@ -133,11 +134,22 @@ void PLATFORM_SoundContinue(void) {}
 void PLATFORM_SoundLock(void) { pthread_mutex_lock(&g_sound_mutex); }
 void PLATFORM_SoundUnlock(void) { pthread_mutex_unlock(&g_sound_mutex); }
 
-int Atari_POT(int pot) { (void)pot; return 228; }
+int Atari_POT(int pot) {
+    if (pot >= 0 && pot < 8)
+        return g_pot_input[pot];
+    return 228;
+}
 
 // Helpers to set joystick state from JNI
 void PLATFORM_SetJoystick(int port, uint8_t stick_code, uint8_t trig_pressed) {
     if (port < 0 || port > 3) return;
     g_stick_port[port] = stick_code & 0x0f;
     g_trig_port[port] = trig_pressed ? 0 : 1; // pressed -> 0
+}
+
+void PLATFORM_SetPaddle(int port, uint8_t pot_value, uint8_t trig_pressed) {
+    if (port < 0 || port > 3) return;
+    g_stick_port[port] = trig_pressed ? INPUT_STICK_LEFT : INPUT_STICK_CENTRE;
+    g_trig_port[port] = trig_pressed ? 0 : 1; // pressed -> 0
+    g_pot_input[port * 2] = pot_value;
 }

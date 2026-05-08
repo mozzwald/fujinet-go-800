@@ -128,6 +128,8 @@ class EmulatorSessionService : LifecycleService() {
                 setKeyState = EmulatorNative::setKeyState,
                 setConsoleKeys = EmulatorNative::setConsoleKeys,
                 setJoystickState = EmulatorNative::setJoystickState,
+                setPaddleState = EmulatorNative::setPaddleState,
+                setPaddlePotMinimum = EmulatorNative::setPaddlePotMinimum,
                 setMouseConfig = EmulatorNative::setMouseConfig,
                 setMouseState = EmulatorNative::setMouseState,
                 startAudio = { sampleRate ->
@@ -322,6 +324,7 @@ class EmulatorSessionService : LifecycleService() {
             is SessionCommand.SetKeyState,
             is SessionCommand.SetConsoleKeys,
             is SessionCommand.SetJoystickState,
+            is SessionCommand.SetPaddleState,
             is SessionCommand.SetMouseState -> {
                 updateState(controller.dispatch(command))
                 syncSurfaceStateFromController()
@@ -891,6 +894,12 @@ internal class EmulatorSessionController(
                 }
             }
 
+            is SessionCommand.SetPaddleState -> {
+                if (state is SessionState.Running) {
+                    runtime.setPaddleState(command.port, command.position, command.fire)
+                }
+            }
+
             is SessionCommand.SetMouseState -> {
                 if (state is SessionState.Running) {
                     runtime.setMouseState(command.deltaX, command.deltaY, command.buttonsMask)
@@ -1010,6 +1019,7 @@ internal class EmulatorSessionController(
         runtime.setNtscFilterConfig(runtimeSettings.ntscFilter)
         runtime.setArtifactingMode(runtimeSettings.artifactingMode)
         runtime.setStereoPokeyEnabled(runtimeSettings.stereoPokeyEnabled)
+        runtime.setPaddlePotMinimum(runtimeSettings.paddlePotMinimum)
         applyMouseConfiguration()
         applyLocalOnlyRuntimeConfiguration()
     }
@@ -1033,6 +1043,9 @@ internal class EmulatorSessionController(
         }
         if (previousSettings == null || previousSettings.stereoPokeyEnabled != runtimeSettings.stereoPokeyEnabled) {
             runtime.setStereoPokeyEnabled(runtimeSettings.stereoPokeyEnabled)
+        }
+        if (previousSettings == null || previousSettings.paddlePotMinimum != runtimeSettings.paddlePotMinimum) {
+            runtime.setPaddlePotMinimum(runtimeSettings.paddlePotMinimum)
         }
         if (previousSettings == null || previousSettings.mouseRuntimeConfigDiffersFrom(runtimeSettings)) {
             applyMouseConfiguration()
@@ -1125,6 +1138,8 @@ internal data class EmulatorSessionRuntime(
     val setKeyState: (Int, Boolean) -> Unit,
     val setConsoleKeys: (Boolean, Boolean, Boolean) -> Unit,
     val setJoystickState: (Int, Float, Float, Boolean) -> Unit,
+    val setPaddleState: (Int, Float, Boolean) -> Unit = { _, _, _ -> },
+    val setPaddlePotMinimum: (Int) -> Unit = {},
     val setMouseConfig: (Int, Int, Int) -> Unit = { _, _, _ -> },
     val setMouseState: (Int, Int, Int) -> Unit = { _, _, _ -> },
     val startAudio: (Int) -> Unit,

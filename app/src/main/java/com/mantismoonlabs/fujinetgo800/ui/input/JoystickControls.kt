@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.GenericShape
@@ -151,6 +152,223 @@ fun JoystickControls(
             }
         }
     }
+}
+
+@Composable
+fun PaddleControls(
+    position: Float,
+    onPositionChanged: (Float) -> Unit,
+    onFirePressed: () -> Unit,
+    onFireReleased: () -> Unit,
+    hapticsEnabled: Boolean,
+    compact: Boolean = false,
+    footerContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val footerSectionHeight = if (footerContent != null) {
+            if (compact) 48.dp else 60.dp
+        } else {
+            0.dp
+        }
+        val horizontalPadding = if (compact) 16.dp else 22.dp
+        val verticalPadding = if (compact) 10.dp else 14.dp
+        val sliderHorizontalPadding = if (compact) 28.dp else 40.dp
+        val sliderBottomPadding = if (compact) 28.dp else 52.dp
+        val controlWidth = minOf(maxWidth - (horizontalPadding * 2), if (compact) 520.dp else 620.dp)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            tonalElevation = 4.dp,
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    PaddleFireButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = controlWidth)
+                            .height(if (compact) 58.dp else 70.dp)
+                            .align(Alignment.TopCenter),
+                        onFirePressed = onFirePressed,
+                        onFireReleased = onFireReleased,
+                        hapticsEnabled = hapticsEnabled,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = sliderHorizontalPadding,
+                                end = sliderHorizontalPadding,
+                                bottom = sliderBottomPadding,
+                            )
+                            .align(Alignment.BottomCenter),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        PaddleSliderControl(
+                            position = position,
+                            onPositionChanged = onPositionChanged,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = controlWidth)
+                                .height(if (compact) 58.dp else 70.dp),
+                        )
+                    }
+                }
+                if (footerContent != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(footerSectionHeight),
+                    ) {
+                        footerContent()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaddleSliderControl(
+    position: Float,
+    onPositionChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var controlSize by remember { mutableStateOf(IntSize.Zero) }
+    var activePointerId by remember { mutableStateOf<Int?>(null) }
+
+    fun updatePosition(x: Float) {
+        val width = controlSize.width.coerceAtLeast(1)
+        onPositionChanged((x / width).coerceIn(0f, 1f))
+    }
+
+    Box(
+        modifier = modifier
+            .testTag("paddle-slider")
+            .onSizeChanged { controlSize = it }
+            .pointerInteropFilter { event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_POINTER_DOWN -> {
+                        if (activePointerId != null) {
+                            return@pointerInteropFilter true
+                        }
+                        activePointerId = event.getPointerId(event.actionIndex)
+                        updatePosition(event.getX(event.actionIndex))
+                        true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        val pointerId = activePointerId ?: return@pointerInteropFilter false
+                        val pointerIndex = event.findPointerIndex(pointerId)
+                        if (pointerIndex < 0) {
+                            activePointerId = null
+                            return@pointerInteropFilter true
+                        }
+                        updatePosition(event.getX(pointerIndex))
+                        true
+                    }
+
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        if (event.getPointerId(event.actionIndex) == activePointerId) {
+                            activePointerId = null
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        activePointerId = null
+                        true
+                    }
+
+                    else -> false
+                }
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
+        )
+        val knobSizePx = min(controlSize.height, 56)
+        val knobOffset = ((controlSize.width - knobSizePx).coerceAtLeast(0) * position.coerceIn(0f, 1f)).roundToInt()
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(knobOffset, 0) }
+                .size(with(androidx.compose.ui.platform.LocalDensity.current) { knobSizePx.toDp() })
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .border(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f), CircleShape),
+        )
+    }
+}
+
+@Composable
+private fun PaddleFireButton(
+    onFirePressed: () -> Unit,
+    onFireReleased: () -> Unit,
+    hapticsEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val emitFireHaptic = rememberFujiHaptic(FujiHapticPattern.KeyPress)
+    var activePointerId by remember { mutableStateOf<Int?>(null) }
+    val shape = RoundedCornerShape(18.dp)
+    val releaseFire = {
+        activePointerId = null
+        onFireReleased()
+    }
+    Box(
+        modifier = modifier
+            .testTag("paddle-fire-button")
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), shape)
+            .pointerInteropFilter { event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_POINTER_DOWN -> {
+                        if (activePointerId == null) {
+                            activePointerId = event.getPointerId(event.actionIndex)
+                            if (hapticsEnabled) {
+                                emitFireHaptic()
+                            }
+                            onFirePressed()
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        if (event.getPointerId(event.actionIndex) == activePointerId) {
+                            releaseFire()
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        releaseFire()
+                        true
+                    }
+
+                    else -> false
+                }
+            },
+    )
 }
 
 @Composable

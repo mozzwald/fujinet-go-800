@@ -414,6 +414,30 @@ Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setJoystickState(
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setPaddleState(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint port,
+        jfloat position,
+        jboolean fire
+) {
+    (void)env;
+    SessionRuntime::Get().SetPaddleState(port, position, fire);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_nativeSetPaddlePotMinimum(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint value
+) {
+    (void)env;
+    SessionRuntime::Get().SetPaddlePotMinimum(value);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_nativeSetMouseConfig(
         JNIEnv* env,
         jobject /*thiz*/,

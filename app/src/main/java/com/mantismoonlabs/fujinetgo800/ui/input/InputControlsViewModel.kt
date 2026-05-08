@@ -14,6 +14,7 @@ import com.mantismoonlabs.fujinetgo800.settings.ControlMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
+import com.mantismoonlabs.fujinetgo800.settings.paddlePort
 import com.mantismoonlabs.fujinetgo800.settings.touchscreenJoystickPort
 import com.mantismoonlabs.fujinetgo800.session.SessionRepository
 import kotlinx.coroutines.Job
@@ -50,6 +51,8 @@ class InputControlsViewModel(
     private val pressedAtByMapping = mutableMapOf<AtariKeyMapping, Long>()
     private val pendingReleaseJobs = mutableMapOf<AtariKeyMapping, Job>()
     private val consoleKeysPressed = linkedSetOf<AtariConsoleKey>()
+    private var paddlePosition = 0.5f
+    private var paddleFirePressed = false
     private val joystickDispatcher = TouchJoystickDispatcher(
         portProvider = {
             uiState.value.settings.touchscreenJoystickPort()?.index
@@ -186,6 +189,15 @@ class InputControlsViewModel(
         joystickDispatcher.move(x, y)
     }
 
+    fun onPaddlePositionChanged(position: Float) {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        val port = uiState.value.settings.paddlePort()?.index ?: return
+        paddlePosition = position.coerceIn(0f, 1f)
+        sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = paddleFirePressed)
+    }
+
     fun onJoystickReleased() {
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
@@ -197,11 +209,21 @@ class InputControlsViewModel(
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
         }
+        uiState.value.settings.paddlePort()?.index?.let { port ->
+            paddleFirePressed = true
+            sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = true)
+            return
+        }
         joystickDispatcher.pressFire()
     }
 
     fun onFireReleased() {
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        uiState.value.settings.paddlePort()?.index?.let { port ->
+            paddleFirePressed = false
+            sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
             return
         }
         joystickDispatcher.releaseFire()
@@ -212,6 +234,9 @@ class InputControlsViewModel(
         pendingReleaseJobs.clear()
         consoleKeysPressed.clear()
         joystickDispatcher.reset()
+        uiState.value.settings.paddlePort()?.index?.let { port ->
+            sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
+        }
         super.onCleared()
     }
 

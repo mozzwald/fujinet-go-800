@@ -34,11 +34,13 @@ extern "C" {
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 extern "C" void PLATFORM_SetJoystick(int port, uint8_t stick_code, uint8_t trig_pressed);
+extern "C" void PLATFORM_SetPaddle(int port, uint8_t pot_value, uint8_t trig_pressed);
 extern "C" void FujiNetAndroid_MixAudio(int16_t* output, int sampleCount, int outputSampleRate);
 extern "C" void FujiNetAndroid_ClearAudio();
 
 namespace {
 int resolved_ram_size_for_config(int machine_type, int memory_size_kb);
+constexpr float kAtariPaddlePotLeft = 228.0f;
 
 const char* machine_label_for_request(int machine_type) {
     switch (machine_type) {
@@ -589,6 +591,22 @@ void SessionRuntime::SetJoystickState(jint port, jfloat x, jfloat y, jboolean fi
     pending_joystick_dirty_[port] = true;
 }
 
+void SessionRuntime::SetPaddleState(jint port, jfloat position, jboolean fire) {
+    if (port < 0 || port >= static_cast<jint>(pending_paddle_position_.size())) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(input_mutex_);
+    pending_paddle_position_[port] = std::max(0.0f, std::min(1.0f, static_cast<float>(position)));
+    pending_paddle_fire_[port] = fire == JNI_TRUE;
+    pending_paddle_dirty_[port] = true;
+}
+
+void SessionRuntime::SetPaddlePotMinimum(jint value) {
+    std::lock_guard<std::mutex> lock(input_mutex_);
+    paddle_pot_minimum_ = std::max(0, std::min(228, static_cast<int>(value)));
+    std::fill(pending_paddle_dirty_.begin(), pending_paddle_dirty_.end(), true);
+}
+
 void SessionRuntime::SetMouseConfig(jint mode, jint port, jint speed) {
     std::lock_guard<std::mutex> lock(core_mutex_);
     mouse_mode_ = input_mouse_mode_from_setting(mode);
@@ -1040,6 +1058,24 @@ void SessionRuntime::ApplyPendingJoystickStateLocked() {
     }
 }
 
+void SessionRuntime::ApplyPendingPaddleStateLocked() {
+    std::lock_guard<std::mutex> input_lock(input_mutex_);
+    for (size_t i = 0; i < pending_paddle_dirty_.size(); ++i) {
+        if (!pending_paddle_dirty_[i]) {
+            continue;
+        }
+        const float position = pending_paddle_position_[i];
+        const float pot_minimum = static_cast<float>(paddle_pot_minimum_);
+        const float scaled_pot = kAtariPaddlePotLeft -
+                ((kAtariPaddlePotLeft - pot_minimum) * position);
+        const auto pot_value = static_cast<uint8_t>(
+                std::max(0, std::min(228, static_cast<int>(std::round(scaled_pot))))
+        );
+        PLATFORM_SetPaddle(static_cast<int>(i), pot_value, pending_paddle_fire_[i] ? 1 : 0);
+        pending_paddle_dirty_[i] = false;
+    }
+}
+
 void SessionRuntime::ApplyPendingMouseStateLocked() {
     bool center_requested = false;
     std::lock_guard<std::mutex> input_lock(input_mutex_);
@@ -1151,6 +1187,7 @@ void SessionRuntime::RunFrame(uint8_t* dst, int stride) {
     static uint32_t fallback_counter = 0;
     if (core_ready_ && Screen_atari != nullptr) {
         ApplyPendingJoystickStateLocked();
+        ApplyPendingPaddleStateLocked();
         ApplyPendingMouseStateLocked();
         Atari800_Frame();
         INPUT_mouse_delta_x = 0;

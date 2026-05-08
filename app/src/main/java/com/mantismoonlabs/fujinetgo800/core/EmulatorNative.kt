@@ -61,6 +61,7 @@ object EmulatorNative {
     private external fun nativeSetStereoPokeyEnabled(enabled: Boolean)
     private external fun nativeSetHDevicePath(slot: Int, path: String?)
     private external fun nativeSetMouseConfig(mode: Int, port: Int, speed: Int)
+    private external fun nativeSetPaddlePotMinimum(value: Int)
     external fun loadRom(romData: ByteArray): Boolean
     external fun loadCartridge(data: ByteArray): Boolean
     external fun loadXex(data: ByteArray): Boolean
@@ -92,6 +93,7 @@ object EmulatorNative {
     external fun setKeyState(aKeyCode: Int, pressed: Boolean)
     external fun setConsoleKeys(start: Boolean, select: Boolean, option: Boolean)
     external fun setJoystickState(port: Int, x: Float, y: Float, fire: Boolean)
+    external fun setPaddleState(port: Int, position: Float, fire: Boolean)
     external fun setMouseState(deltaX: Int, deltaY: Int, buttonsMask: Int)
 
     fun startSession(
@@ -219,6 +221,10 @@ object EmulatorNative {
 
     fun setMouseConfig(mode: Int, port: Int, speed: Int) {
         nativeSetMouseConfig(mode = mode, port = port, speed = speed)
+    }
+
+    fun setPaddlePotMinimum(value: Int) {
+        nativeSetPaddlePotMinimum(value.coerceIn(0, 228))
     }
 
     fun resetSystem(notifyFujiNet: Boolean = true) {

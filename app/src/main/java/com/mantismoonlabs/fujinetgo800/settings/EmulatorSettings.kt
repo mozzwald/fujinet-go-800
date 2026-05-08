@@ -46,6 +46,7 @@ enum class PortInputDevice {
     USB_JOYSTICK,
     ATARI_ST_MOUSE,
     AMIGA_MOUSE,
+    PADDLE,
 }
 
 enum class VideoStandard {
@@ -162,6 +163,7 @@ data class EmulatorSettings(
     val port4HardwareControllerName: String? = null,
     val mouseSpeed: Int = 3,
     val touchscreenMouseSensitivity: Float = 1.5f,
+    val paddlePotMinimum: Int = 95,
     val videoStandard: VideoStandard = VideoStandard.NTSC,
     val ntscFilter: NtscFilterSettings = NtscFilterSettings(),
     val xlxeRomPath: String? = null,
@@ -242,9 +244,12 @@ fun EmulatorSettings.hardwareControllerNameFor(port: JoystickPort): String? = wh
 
 fun EmulatorSettings.withInputDeviceFor(port: JoystickPort, device: PortInputDevice): EmulatorSettings {
     var updated = this
-    if (device == PortInputDevice.TOUCHSCREEN_JOYSTICK) {
+    if (device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE) {
         JoystickPort.entries.forEach { existingPort ->
-            if (updated.inputDeviceFor(existingPort) == PortInputDevice.TOUCHSCREEN_JOYSTICK) {
+            if (
+                updated.inputDeviceFor(existingPort) == PortInputDevice.TOUCHSCREEN_JOYSTICK ||
+                updated.inputDeviceFor(existingPort) == PortInputDevice.PADDLE
+            ) {
                 updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
             }
         }
@@ -290,14 +295,16 @@ fun EmulatorSettings.normalizedInputPorts(): EmulatorSettings {
     var normalized = this.copy(
         mouseSpeed = mouseSpeed.coerceIn(1, 9),
         touchscreenMouseSensitivity = touchscreenMouseSensitivity.coerceIn(0.25f, 4f),
+        paddlePotMinimum = paddlePotMinimum.coerceIn(0, 228),
     )
     var touchscreenSeen = false
     var mouseSeen = false
     JoystickPort.entries.forEach { port ->
         val device = normalized.inputDeviceFor(port)
         val replacement = when {
-            device == PortInputDevice.TOUCHSCREEN_JOYSTICK && touchscreenSeen -> PortInputDevice.NONE
-            device == PortInputDevice.TOUCHSCREEN_JOYSTICK -> {
+            (device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE) && touchscreenSeen ->
+                PortInputDevice.NONE
+            device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE -> {
                 touchscreenSeen = true
                 device
             }
@@ -321,6 +328,12 @@ fun EmulatorSettings.normalizedInputPorts(): EmulatorSettings {
 fun EmulatorSettings.touchscreenJoystickPort(): JoystickPort? {
     return JoystickPort.entries.firstOrNull { port ->
         inputDeviceFor(port) == PortInputDevice.TOUCHSCREEN_JOYSTICK
+    }
+}
+
+fun EmulatorSettings.paddlePort(): JoystickPort? {
+    return JoystickPort.entries.firstOrNull { port ->
+        inputDeviceFor(port) == PortInputDevice.PADDLE
     }
 }
 

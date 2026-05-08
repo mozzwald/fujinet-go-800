@@ -67,6 +67,7 @@ internal object EmulatorSettingsPreferenceKeys {
     val port4HardwareControllerName = stringPreferencesKey("port_4_hardware_controller_name")
     val mouseSpeed = intPreferencesKey("mouse_speed")
     val touchscreenMouseSensitivity = floatPreferencesKey("touchscreen_mouse_sensitivity")
+    val paddlePotMinimum = intPreferencesKey("paddle_pot_minimum")
     val videoStandard = stringPreferencesKey("video_standard")
     val ntscFilterPreset = stringPreferencesKey("ntsc_filter_preset")
     val ntscFilterSharpness = floatPreferencesKey("ntsc_filter_sharpness")
@@ -302,6 +303,12 @@ class EmulatorSettingsRepository private constructor(
         }
     }
 
+    suspend fun updatePaddlePotMinimum(value: Int) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.paddlePotMinimum] = value.coerceIn(0, 228)
+        }
+    }
+
     suspend fun updateVideoStandard(videoStandard: VideoStandard) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.videoStandard] = videoStandard.name
@@ -511,6 +518,7 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
         touchscreenMouseSensitivity = (
             this[EmulatorSettingsPreferenceKeys.touchscreenMouseSensitivity] ?: 1.5f
             ).coerceIn(0.25f, 4f),
+        paddlePotMinimum = (this[EmulatorSettingsPreferenceKeys.paddlePotMinimum] ?: 114).coerceIn(0, 228),
         videoStandard = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.videoStandard,
             defaultValue = VideoStandard.NTSC,
