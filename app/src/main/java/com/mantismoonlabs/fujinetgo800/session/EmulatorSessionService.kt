@@ -845,10 +845,12 @@ internal class EmulatorSessionController(
 
             is SessionCommand.InsertCartridge -> {
                 runtime.insertCartridge(command.importedPath)
+                resetSystem(notifyFujiNet = false)
             }
 
             SessionCommand.RemoveCartridge -> {
                 runtime.removeCartridge()
+                resetSystem(notifyFujiNet = false)
             }
 
             is SessionCommand.LoadExecutable -> {

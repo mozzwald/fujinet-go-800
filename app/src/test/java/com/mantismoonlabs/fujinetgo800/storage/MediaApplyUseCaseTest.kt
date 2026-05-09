@@ -44,6 +44,7 @@ class MediaApplyUseCaseTest {
             SessionCommand.InsertCartridge(importedPath = "/runtime/imports/carts/demo.car"),
             prepared.command,
         )
+        assertTrue(prepared.requiresReset)
     }
 
     @Test

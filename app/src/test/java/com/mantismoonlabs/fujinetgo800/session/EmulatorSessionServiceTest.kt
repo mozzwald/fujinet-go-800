@@ -271,6 +271,24 @@ class EmulatorSessionServiceTest {
     }
 
     @Test
+    fun cartridgeChangesColdResetRunningSession() {
+        val harness = SessionServiceHarness()
+        harness.coldStart(persistedLaunchMode = LaunchMode.LOCAL_ONLY)
+        harness.dispatch(
+            SessionCommand.StartSession(
+                SessionLaunchConfig(
+                    settings = EmulatorSettings(launchMode = LaunchMode.LOCAL_ONLY),
+                ),
+            ),
+        )
+
+        harness.dispatch(SessionCommand.InsertCartridge("/runtime/imports/carts/demo.car"))
+        harness.dispatch(SessionCommand.RemoveCartridge)
+
+        assertEquals(3, harness.resetSystemCalls)
+    }
+
+    @Test
     fun videoStandardIsAppliedOnStartAndRuntimeUpdate() {
         val harness = SessionServiceHarness()
         harness.coldStart(persistedLaunchMode = LaunchMode.FUJINET_ENABLED)

@@ -493,7 +493,7 @@ class MainActivity : ComponentActivity() {
                 localMediaViewModel.pickerRequests.collect { role ->
                     when (role) {
                         MediaRole.DISK -> diskPickerLauncher.launch(arrayOf("*/*"))
-                        MediaRole.CARTRIDGE -> cartridgePickerLauncher.launch(arrayOf("*/*"))
+                        MediaRole.CARTRIDGE -> cartridgePickerLauncher.launch(CartridgePickerMimeTypes)
                         MediaRole.EXECUTABLE -> executablePickerLauncher.launch(arrayOf("*/*"))
                         MediaRole.ROM -> romPickerLauncher.launch(arrayOf("*/*"))
                     }
@@ -640,10 +640,17 @@ class MainActivity : ComponentActivity() {
         } catch (_: SecurityException) {
             // Some providers grant temporary access only; persistence is best-effort.
         }
+        val resolvedDisplayName = resolveDisplayName(uri)
+        val validationName = resolvedDisplayName ?: uri.lastPathSegment.orEmpty()
+        if (role == MediaRole.CARTRIDGE && !validationName.hasSupportedCartridgeExtension()) {
+            Toast.makeText(this, "Choose a CAR, ROM, or BIN cartridge file.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val displayName = resolvedDisplayName ?: defaultDisplayName(role)
         localMediaViewModel.onDocumentPicked(
             role = role,
             uriString = uri.toString(),
-            displayName = resolveDisplayName(uri) ?: defaultDisplayName(role),
+            displayName = displayName,
         )
         sessionRepository?.dispatch(SessionCommand.ApplyStoredMedia(role))
     }
@@ -793,6 +800,12 @@ class MainActivity : ComponentActivity() {
             .ifBlank { "imported.bin" }
     }
 
+    private fun String.hasSupportedCartridgeExtension(): Boolean {
+        val extension = substringAfterLast('.', missingDelimiterValue = "")
+            .lowercase()
+        return extension == "car" || extension == "rom" || extension == "bin"
+    }
+
     private fun onHDeviceTreePicked(slot: Int?, uri: Uri?) {
         if (slot == null || uri == null) {
             return
@@ -846,6 +859,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val ExternalStorageProviderAuthority = "com.android.externalstorage.documents"
+        private val CartridgePickerMimeTypes = arrayOf(
+            "application/octet-stream",
+            "application/x-atari-cartridge",
+            "application/x-rom",
+            "*/*",
+        )
         const val ActionShutdownFromNotification =
             "com.mantismoonlabs.fujinetgo800.action.SHUTDOWN_FROM_NOTIFICATION"
     }

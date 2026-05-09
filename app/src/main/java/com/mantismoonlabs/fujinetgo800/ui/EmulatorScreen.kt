@@ -2685,6 +2685,7 @@ private fun FullScreenSettings(
                 when (launchSettingsState.selectedTab) {
                     SettingsTab.MACHINE -> MachineSettingsTab(
                         state = launchSettingsState,
+                        localMediaState = localMediaState,
                         onMachineTypeSelected = onMachineTypeSelected,
                         onMemoryProfileSelected = onMemoryProfileSelected,
                         onBasicEnabledChanged = onBasicEnabledChanged,
@@ -2700,6 +2701,8 @@ private fun FullScreenSettings(
                         onScanlinesChanged = onScanlinesChanged,
                         onPickSystemRom = onPickSystemRom,
                         onClearSystemRom = onClearSystemRom,
+                        onPickLocalMedia = onPickLocalMedia,
+                        onClearLocalMedia = onClearLocalMedia,
                     )
 
                     SettingsTab.FUJINET -> FujiNetSettingsTab(
@@ -2889,6 +2892,7 @@ private fun SettingsTabStrip(
 @Composable
 private fun MachineSettingsTab(
     state: LaunchSettingsUiState,
+    localMediaState: LocalMediaUiState,
     onMachineTypeSelected: (AtariMachineType) -> Unit,
     onMemoryProfileSelected: (MemoryProfile) -> Unit,
     onBasicEnabledChanged: (Boolean) -> Unit,
@@ -2904,6 +2908,8 @@ private fun MachineSettingsTab(
     onScanlinesChanged: (Boolean) -> Unit,
     onPickSystemRom: (SystemRomKind) -> Unit,
     onClearSystemRom: (SystemRomKind) -> Unit,
+    onPickLocalMedia: (MediaRole) -> Unit,
+    onClearLocalMedia: (MediaRole) -> Unit,
 ) {
     SettingsSection(
         title = "Machine",
@@ -2940,6 +2946,59 @@ private fun MachineSettingsTab(
                 testTagPrefix = "memory-profile",
             )
 
+        }
+    }
+
+    SettingsSection(
+        title = "ROM & Firmware",
+        subtitle = "Custom ROM files override the built-in Altirra defaults.",
+    ) {
+        SettingsGroup {
+            SystemRomSettingsRow(
+                title = "XL/XE ROM",
+                currentLabel = state.xlxeRomLabel,
+                onPick = { onPickSystemRom(SystemRomKind.XL_XE) },
+                onClear = { onClearSystemRom(SystemRomKind.XL_XE) },
+                hasSelection = state.settings.xlxeRomPath != null,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SystemRomSettingsRow(
+                title = "BASIC ROM",
+                currentLabel = state.basicRomLabel,
+                onPick = { onPickSystemRom(SystemRomKind.BASIC) },
+                onClear = { onClearSystemRom(SystemRomKind.BASIC) },
+                hasSelection = state.settings.basicRomPath != null,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SystemRomSettingsRow(
+                title = "400/800 ROM",
+                currentLabel = state.atari400800RomLabel,
+                onPick = { onPickSystemRom(SystemRomKind.ATARI_400_800) },
+                onClear = { onClearSystemRom(SystemRomKind.ATARI_400_800) },
+                hasSelection = state.settings.atari400800RomPath != null,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsToggleRow(
+                title = "Boot with BASIC",
+                subtitle = "If disabled, the emulator boots with BASIC off.",
+                checked = state.settings.basicEnabled,
+                checkedLabel = state.basicBootLabel,
+                onToggle = { onBasicEnabledChanged(!state.settings.basicEnabled) },
+                testTagPrefix = "basic-boot",
+            )
+        }
+    }
+
+    SettingsSection(
+        title = "Cartridge",
+        subtitle = "Mount CAR, ROM, or BIN cartridge images. Cartridge changes cold reset the emulator.",
+    ) {
+        SettingsGroup {
+            CartridgeSettingsRow(
+                slot = localMediaState.cartridge,
+                onPick = { onPickLocalMedia(MediaRole.CARTRIDGE) },
+                onClear = { onClearLocalMedia(MediaRole.CARTRIDGE) },
+            )
         }
     }
 
@@ -3062,46 +3121,6 @@ private fun MachineSettingsTab(
                 checkedLabel = state.scanlinesLabel,
                 onToggle = { onScanlinesChanged(!state.settings.scanlinesEnabled) },
                 testTagPrefix = "scanlines",
-            )
-        }
-    }
-
-    SettingsSection(
-        title = "ROM & Firmware",
-        subtitle = "Custom ROM files override the built-in Altirra defaults.",
-    ) {
-        SettingsGroup {
-            SystemRomSettingsRow(
-                title = "XL/XE ROM",
-                currentLabel = state.xlxeRomLabel,
-                onPick = { onPickSystemRom(SystemRomKind.XL_XE) },
-                onClear = { onClearSystemRom(SystemRomKind.XL_XE) },
-                hasSelection = state.settings.xlxeRomPath != null,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            SystemRomSettingsRow(
-                title = "BASIC ROM",
-                currentLabel = state.basicRomLabel,
-                onPick = { onPickSystemRom(SystemRomKind.BASIC) },
-                onClear = { onClearSystemRom(SystemRomKind.BASIC) },
-                hasSelection = state.settings.basicRomPath != null,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            SystemRomSettingsRow(
-                title = "400/800 ROM",
-                currentLabel = state.atari400800RomLabel,
-                onPick = { onPickSystemRom(SystemRomKind.ATARI_400_800) },
-                onClear = { onClearSystemRom(SystemRomKind.ATARI_400_800) },
-                hasSelection = state.settings.atari400800RomPath != null,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            SettingsToggleRow(
-                title = "Boot with BASIC",
-                subtitle = "If disabled, the emulator boots with BASIC off.",
-                checked = state.settings.basicEnabled,
-                checkedLabel = state.basicBootLabel,
-                onToggle = { onBasicEnabledChanged(!state.settings.basicEnabled) },
-                testTagPrefix = "basic-boot",
             )
         }
     }
@@ -3901,6 +3920,40 @@ private fun SystemRomSettingsRow(
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Use built-in")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartridgeSettingsRow(
+    slot: MediaSlotUiState,
+    onPick: () -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SettingsValueRow(
+            title = "Mounted cartridge",
+            value = if (slot.hasSelection) "Mounted" else "None",
+            subtitle = slot.displayLabel,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilledTonalButton(
+                onClick = onPick,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Choose file")
+            }
+            if (slot.hasSelection) {
+                OutlinedButton(
+                    onClick = onClear,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Remove Cartridge")
                 }
             }
         }

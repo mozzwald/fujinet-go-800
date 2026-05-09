@@ -19,7 +19,7 @@ class MediaApplyUseCase(
         return PreparedMediaCommand(
             importedSelection = importedSelection,
             command = command,
-            requiresReset = selection.mediaKind == MediaKind.ROM,
+            requiresReset = selection.mediaKind == MediaKind.CARTRIDGE || selection.mediaKind == MediaKind.ROM,
         )
     }
 
