@@ -562,10 +562,13 @@ class EmulatorSessionService : LifecycleService() {
             Intent(this, EmulatorSessionService::class.java).setAction(ActionTogglePause),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val stopIntent = PendingIntent.getService(
+        val stopIntent = PendingIntent.getActivity(
             this,
             2,
-            Intent(this, EmulatorSessionService::class.java).setAction(ActionStopService),
+            Intent(this, MainActivity::class.java).apply {
+                action = MainActivity.ActionShutdownFromNotification
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 

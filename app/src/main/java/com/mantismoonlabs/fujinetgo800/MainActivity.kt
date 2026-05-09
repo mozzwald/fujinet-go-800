@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
     private var isBound = false
     private var serviceStartRequested = false
     private var shutdownInProgress = false
+    private var shutdownRequestedFromNotification = false
     private var notificationGateState by mutableStateOf<NotificationStartupGateState>(
         NotificationStartupGateState.Loading,
     )
@@ -145,6 +146,10 @@ class MainActivity : ComponentActivity() {
             val repository = ServiceBackedSessionRepository(boundService)
             sessionRepository = repository
             isBound = true
+            if (shutdownRequestedFromNotification) {
+                shutdownEmulatorAndExit()
+                return
+            }
             repository.dispatch(SessionCommand.HostStarted)
             if (notificationsReadyForForegroundService()) {
                 repository.refreshNotification()
@@ -171,6 +176,7 @@ class MainActivity : ComponentActivity() {
         )[LocalMediaViewModel::class.java]
         observePickerRequests()
         observeHostDisplaySettings()
+        handleIntent(intent)
         setContent {
             Fuji800ATheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -242,9 +248,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (notificationGateState == NotificationStartupGateState.Ready) {
+        if (shutdownRequestedFromNotification) {
+            ensureServiceStartedAndBound()
+        } else if (notificationGateState == NotificationStartupGateState.Ready) {
             ensureServiceStartedAndBound()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
     }
 
     override fun onResume() {
@@ -270,6 +284,7 @@ class MainActivity : ComponentActivity() {
 
     private fun shutdownEmulatorAndExit() {
         lifecycleScope.launch {
+            shutdownRequestedFromNotification = false
             shutdownInProgress = true
             val service = emulationService
             sessionRepository = null
@@ -278,6 +293,16 @@ class MainActivity : ComponentActivity() {
                 service?.stopEmulationService()
             }
             finish()
+        }
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != ActionShutdownFromNotification) {
+            return
+        }
+        shutdownRequestedFromNotification = true
+        if (emulationService != null) {
+            shutdownEmulatorAndExit()
         }
     }
 
@@ -821,6 +846,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val ExternalStorageProviderAuthority = "com.android.externalstorage.documents"
+        const val ActionShutdownFromNotification =
+            "com.mantismoonlabs.fujinetgo800.action.SHUTDOWN_FROM_NOTIFICATION"
     }
 }
 
