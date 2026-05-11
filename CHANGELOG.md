@@ -1,3 +1,18 @@
+# 1.2.0
+
+* Add support for Paste Text from Android
+* Add mouse support (ST or Amiga)
+* Emulator screen becomes virtual touchpad for mouse emulation, tap to click
+* Add mouse speed and touchscreen mouse sensitivity settings
+* Add per port joystick configuration in settings and on joystick input screen
+* Add Bluetooth/USB hardware controller assignment per joystick port
+* Refresh connected controller options when opening the port picker
+* Add configurable paddle input support with on-screen paddle controls
+* Add paddle POT minimum setting
+* Fix notification bar Stop button, it now follows the same shutdown path as button in app
+* Add cartridge mounting in Machine settings
+* Make 130XE default machine on first run
+
 # 1.1.0
 
 * Add inverse key and show inverse legends when active
