@@ -102,8 +102,8 @@ object EmulatorNative {
         sampleRate: Int,
         enableFujiNet: Boolean = false,
         runtimeRootPath: String,
-        machineType: AtariMachineType = AtariMachineType.ATARI_800XL,
-        memoryProfile: MemoryProfile = MemoryProfile.RAM_64,
+        machineType: AtariMachineType = AtariMachineType.ATARI_130XE,
+        memoryProfile: MemoryProfile = MemoryProfile.RAM_128,
         basicEnabled: Boolean = false,
     ) {
         nativeStartSession(

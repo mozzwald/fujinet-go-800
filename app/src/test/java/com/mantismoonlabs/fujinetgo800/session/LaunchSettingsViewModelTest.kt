@@ -367,8 +367,8 @@ class LaunchSettingsViewModelTest {
         advanceUntilIdle()
         viewModel.onSettingsOpened()
         advanceUntilIdle()
-        viewModel.onMachineTypeSelected(AtariMachineType.ATARI_130XE)
-        viewModel.onMemoryProfileSelected(MemoryProfile.RAM_128)
+        viewModel.onMachineTypeSelected(AtariMachineType.ATARI_400_800)
+        viewModel.onMemoryProfileSelected(MemoryProfile.RAM_48)
         advanceUntilIdle()
         sessionRepository.dispatchedCommands.clear()
 

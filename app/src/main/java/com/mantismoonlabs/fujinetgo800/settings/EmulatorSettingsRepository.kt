@@ -443,14 +443,14 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
         turboEnabled = this[EmulatorSettingsPreferenceKeys.turboEnabled] ?: false,
         machineType = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.machineType,
-            defaultValue = AtariMachineType.ATARI_800XL,
+            defaultValue = AtariMachineType.ATARI_130XE,
             legacyAliases = mapOf(
                 "ATARI_800" to AtariMachineType.ATARI_400_800,
             ),
         ),
         memoryProfile = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.memoryProfile,
-            defaultValue = MemoryProfile.RAM_64,
+            defaultValue = MemoryProfile.RAM_128,
         ),
         basicEnabled = this[EmulatorSettingsPreferenceKeys.basicEnabled] ?: true,
         sioPatchMode = getEnumOrDefault(
