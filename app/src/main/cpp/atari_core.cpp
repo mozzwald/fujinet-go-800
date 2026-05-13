@@ -427,6 +427,32 @@ Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setPaddleState(
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setKoalaPadPosition(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint port,
+        jint xPot,
+        jint yPot
+) {
+    (void)env;
+    SessionRuntime::Get().SetKoalaPadPosition(port, xPot, yPot);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_setKoalaPadTriggers(
+        JNIEnv* env,
+        jobject /*thiz*/,
+        jint port,
+        jboolean leftPressed,
+        jboolean rightPressed
+) {
+    (void)env;
+    SessionRuntime::Get().SetKoalaPadTriggers(port, leftPressed, rightPressed);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_mantismoonlabs_fujinetgo800_core_EmulatorNative_nativeSetPaddlePotMinimum(
         JNIEnv* env,
         jobject /*thiz*/,

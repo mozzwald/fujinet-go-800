@@ -77,6 +77,8 @@ sealed interface SessionCommand {
     data class SetConsoleKeys(val start: Boolean, val select: Boolean, val option: Boolean) : SessionCommand
     data class SetJoystickState(val port: Int, val x: Float, val y: Float, val fire: Boolean) : SessionCommand
     data class SetPaddleState(val port: Int, val position: Float, val fire: Boolean) : SessionCommand
+    data class SetKoalaPadPosition(val port: Int, val xPot: Int, val yPot: Int) : SessionCommand
+    data class SetKoalaPadTriggers(val port: Int, val leftPressed: Boolean, val rightPressed: Boolean) : SessionCommand
     data class SetMouseState(val deltaX: Int, val deltaY: Int, val buttonsMask: Int) : SessionCommand
     data object HostStarted : SessionCommand
     data object HostStopped : SessionCommand

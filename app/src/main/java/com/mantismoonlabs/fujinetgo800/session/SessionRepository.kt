@@ -51,6 +51,26 @@ interface SessionRepository {
         )
     }
 
+    fun setKoalaPadPosition(port: Int, xPot: Int, yPot: Int) {
+        dispatch(
+            SessionCommand.SetKoalaPadPosition(
+                port = port,
+                xPot = xPot,
+                yPot = yPot,
+            ),
+        )
+    }
+
+    fun setKoalaPadTriggers(port: Int, leftPressed: Boolean, rightPressed: Boolean) {
+        dispatch(
+            SessionCommand.SetKoalaPadTriggers(
+                port = port,
+                leftPressed = leftPressed,
+                rightPressed = rightPressed,
+            ),
+        )
+    }
+
     fun setMouseState(deltaX: Int, deltaY: Int, buttonsMask: Int) {
         dispatch(
             SessionCommand.SetMouseState(

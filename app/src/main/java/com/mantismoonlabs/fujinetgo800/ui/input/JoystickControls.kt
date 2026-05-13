@@ -41,6 +41,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 
 @Composable
 fun JoystickControls(
@@ -235,6 +236,162 @@ fun PaddleControls(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun KoalaPadControls(
+    onLeftTriggerPressed: () -> Unit,
+    onLeftTriggerReleased: () -> Unit,
+    onRightTriggerPressed: () -> Unit,
+    onRightTriggerReleased: () -> Unit,
+    shortcutLabel: String,
+    onSpacePressed: () -> Unit,
+    onSpaceReleased: () -> Unit,
+    hapticsEnabled: Boolean,
+    compact: Boolean = false,
+    footerContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val footerSectionHeight = if (footerContent != null) {
+            if (compact) 48.dp else 60.dp
+        } else {
+            0.dp
+        }
+        val horizontalPadding = if (compact) 16.dp else 22.dp
+        val verticalPadding = if (compact) 10.dp else 14.dp
+        val triggerSize = minOf(maxHeight * 0.34f, if (compact) 72.dp else 92.dp)
+        val spacebarHeight = if (compact) 42.dp else 50.dp
+        val controlGap = if (compact) 10.dp else 14.dp
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            tonalElevation = 4.dp,
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        FireButtonControl(
+                            modifier = Modifier.size(triggerSize),
+                            onFirePressed = onLeftTriggerPressed,
+                            onFireReleased = onLeftTriggerReleased,
+                            hapticsEnabled = hapticsEnabled,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        FireButtonControl(
+                            modifier = Modifier.size(triggerSize),
+                            onFirePressed = onRightTriggerPressed,
+                            onFireReleased = onRightTriggerReleased,
+                            hapticsEnabled = hapticsEnabled,
+                        )
+                    }
+                }
+                KoalaSpacebarControl(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(spacebarHeight)
+                        .padding(horizontal = if (compact) 6.dp else 10.dp),
+                    label = shortcutLabel,
+                    onPressed = onSpacePressed,
+                    onReleased = onSpaceReleased,
+                    hapticsEnabled = hapticsEnabled,
+                )
+                Spacer(modifier = Modifier.height(controlGap))
+                if (footerContent != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(footerSectionHeight),
+                    ) {
+                        footerContent()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KoalaSpacebarControl(
+    label: String,
+    onPressed: () -> Unit,
+    onReleased: () -> Unit,
+    hapticsEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val emitHaptic = rememberFujiHaptic(FujiHapticPattern.KeyPress)
+    var activePointerId by remember { mutableStateOf<Int?>(null) }
+    val shape = RoundedCornerShape(18.dp)
+
+    fun release() {
+        if (activePointerId != null) {
+            activePointerId = null
+            onReleased()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .testTag("koala-spacebar")
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), shape)
+            .pointerInteropFilter { event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_POINTER_DOWN -> {
+                        if (activePointerId == null) {
+                            activePointerId = event.getPointerId(event.actionIndex)
+                            if (hapticsEnabled) {
+                                emitHaptic()
+                            }
+                            onPressed()
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        if (event.getPointerId(event.actionIndex) == activePointerId) {
+                            release()
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        release()
+                        true
+                    }
+
+                    else -> activePointerId != null
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

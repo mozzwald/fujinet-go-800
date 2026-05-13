@@ -380,8 +380,8 @@ class LaunchSettingsViewModelTest {
                 SessionCommand.StartSession(
                     SessionLaunchConfig(
                         settings = EmulatorSettings(
-                            machineType = AtariMachineType.ATARI_130XE,
-                            memoryProfile = MemoryProfile.RAM_128,
+                            machineType = AtariMachineType.ATARI_400_800,
+                            memoryProfile = MemoryProfile.RAM_48,
                         ),
                     ),
                 ),

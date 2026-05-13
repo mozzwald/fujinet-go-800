@@ -12,6 +12,9 @@
 * Fix notification bar Stop button, it now follows the same shutdown path as button in app
 * Add cartridge mounting in Machine settings
 * Make 130XE default machine on first run
+* Add Koala Pad support with Atari viewport touch input
+* Add Koala Pad left/right trigger buttons and configurable shortcut key
+* Disable paste popup while Koala Pad is active
 
 # 1.1.0
 

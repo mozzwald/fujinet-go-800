@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
@@ -95,6 +96,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -113,6 +115,7 @@ import com.mantismoonlabs.fujinetgo800.settings.ArtifactingMode
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
 import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
+import com.mantismoonlabs.fujinetgo800.settings.KoalaPadShortcutKey
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
@@ -125,6 +128,8 @@ import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
 import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerIdFor
 import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerNameFor
 import com.mantismoonlabs.fujinetgo800.settings.inputDeviceFor
+import com.mantismoonlabs.fujinetgo800.settings.destinationRectFor
+import com.mantismoonlabs.fujinetgo800.settings.koalaPadPort
 import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
 import com.mantismoonlabs.fujinetgo800.settings.paddlePort
@@ -152,6 +157,7 @@ import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsUiState
 import com.mantismoonlabs.fujinetgo800.ui.input.InputControlsViewModel
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickPadControl
 import com.mantismoonlabs.fujinetgo800.ui.input.JoystickControls
+import com.mantismoonlabs.fujinetgo800.ui.input.KoalaPadControls
 import com.mantismoonlabs.fujinetgo800.ui.input.PaddleControls
 import com.mantismoonlabs.fujinetgo800.ui.input.PaddleSliderControl
 import kotlinx.coroutines.delay
@@ -569,6 +575,7 @@ fun EmulatorScreen(
                 onMouseSpeedChanged = launchSettingsViewModel::onMouseSpeedChanged,
                 onTouchscreenMouseSensitivityChanged = launchSettingsViewModel::onTouchscreenMouseSensitivityChanged,
                 onPaddlePotMinimumChanged = launchSettingsViewModel::onPaddlePotMinimumChanged,
+                onKoalaPadShortcutKeySelected = launchSettingsViewModel::onKoalaPadShortcutKeySelected,
                 onPauseOnAppSwitchChanged = launchSettingsViewModel::onPauseOnAppSwitchChanged,
                 onVideoStandardSelected = launchSettingsViewModel::onVideoStandardSelected,
                 onUseFujiNet = {
@@ -774,7 +781,10 @@ fun EmulatorScreen(
                         onJoystickReleased = inputControlsViewModel::onJoystickReleased,
                         onFirePressed = inputControlsViewModel::onFirePressed,
                         onFireReleased = inputControlsViewModel::onFireReleased,
+                        onKoalaRightTriggerPressed = inputControlsViewModel::onKoalaRightTriggerPressed,
+                        onKoalaRightTriggerReleased = inputControlsViewModel::onKoalaRightTriggerReleased,
                         paddleActive = launchSettingsState.settings.paddlePort() != null,
+                        koalaActive = launchSettingsState.settings.koalaPadPort() != null,
                         paddlePosition = paddlePosition,
                         onPaddlePositionChanged = onPaddlePositionChanged,
                         onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
@@ -1174,6 +1184,32 @@ fun EmulatorScreen(
                                                     compact = compactPortraitControls,
                                                     footerContent = footerContent,
                                                 )
+                                            } else if (launchSettingsState.settings.koalaPadPort() != null) {
+                                                KoalaPadControls(
+                                                    modifier = inputPanelModifier,
+                                                    onLeftTriggerPressed = inputControlsViewModel::onFirePressed,
+                                                    onLeftTriggerReleased = inputControlsViewModel::onFireReleased,
+                                                    onRightTriggerPressed = inputControlsViewModel::onKoalaRightTriggerPressed,
+                                                    onRightTriggerReleased = inputControlsViewModel::onKoalaRightTriggerReleased,
+                                                    shortcutLabel = launchSettingsState.settings.koalaPadShortcutKey.toLabel(),
+                                                    onSpacePressed = {
+                                                        inputControlsViewModel.onFunctionKeyPressed(
+                                                            AtariKeyMapping(
+                                                                aKeyCode = launchSettingsState.settings.koalaPadShortcutKey.toAKeyCode(),
+                                                            ),
+                                                        )
+                                                    },
+                                                    onSpaceReleased = {
+                                                        inputControlsViewModel.onFunctionKeyReleased(
+                                                            AtariKeyMapping(
+                                                                aKeyCode = launchSettingsState.settings.koalaPadShortcutKey.toAKeyCode(),
+                                                            ),
+                                                        )
+                                                    },
+                                                    hapticsEnabled = inputControlsState.joystickHapticsEnabled,
+                                                    compact = compactPortraitControls,
+                                                    footerContent = footerContent,
+                                                )
                                             } else {
                                                 JoystickControls(
                                                     modifier = inputPanelModifier,
@@ -1234,7 +1270,14 @@ private fun PasteEnabledEmulatorRenderHost(
                     sensitivity = emulatorSettings.touchscreenMouseSensitivity,
                     sessionRepository = sessionRepository,
                 )
-                .singlePointerLongPressInput { position ->
+                .koalaPadInput(
+                    port = emulatorSettings.koalaPadPort()?.index,
+                    scaleMode = scaleMode,
+                    sessionRepository = sessionRepository,
+                )
+                .singlePointerLongPressInput(
+                    enabled = emulatorSettings.koalaPadPort() == null,
+                ) { position ->
                     val clipboardText = context.readClipboardText()
                     if (clipboardText.isNotEmpty()) {
                         pasteChip = PasteChipState(
@@ -1292,8 +1335,13 @@ private fun PasteEnabledEmulatorRenderHost(
 }
 
 private fun Modifier.singlePointerLongPressInput(
+    enabled: Boolean = true,
     onLongPress: (Offset) -> Unit,
-): Modifier = pointerInput(onLongPress) {
+): Modifier {
+    if (!enabled) {
+        return this
+    }
+    return pointerInput(onLongPress) {
     awaitPointerEventScope {
         while (true) {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -1334,6 +1382,7 @@ private fun Modifier.singlePointerLongPressInput(
             }
         }
     }
+}
 }
 
 private fun Modifier.touchscreenMouseInput(
@@ -1448,6 +1497,100 @@ private fun Modifier.touchscreenMouseInput(
                 else -> true
             }
         }
+    }
+}
+
+private fun Modifier.koalaPadInput(
+    port: Int?,
+    scaleMode: ScaleMode,
+    sessionRepository: SessionRepository,
+): Modifier {
+    val activePort = port ?: return this
+    return composed {
+        var hostSize by remember { mutableStateOf(IntSize.Zero) }
+        var activePointerId by remember { mutableStateOf<Int?>(null) }
+
+        fun dispatchKoalaPosition(x: Float, y: Float) {
+            val destinationRect = destinationRectFor(
+                scaleMode = scaleMode,
+                canvasWidth = hostSize.width,
+                canvasHeight = hostSize.height,
+                frameWidth = EmulatorFrameWidth,
+                frameHeight = EmulatorFrameHeight,
+            )
+            val normalizedX = ((x - destinationRect.left) / destinationRect.width().coerceAtLeast(1)).coerceIn(0f, 1f)
+            val normalizedY = ((y - destinationRect.top) / destinationRect.height().coerceAtLeast(1)).coerceIn(0f, 1f)
+            val xPot = (normalizedX * 228f).roundToInt().coerceIn(0, 228)
+            val yPot = (normalizedY * 228f).roundToInt().coerceIn(0, 228)
+            sessionRepository.setKoalaPadPosition(activePort, xPot, yPot)
+        }
+
+        onSizeChanged { hostSize = it }
+            .pointerInteropFilter { event ->
+                if (hostSize.width <= 0 || hostSize.height <= 0) {
+                    return@pointerInteropFilter false
+                }
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        val x = event.getX(event.actionIndex)
+                        val y = event.getY(event.actionIndex)
+                        val destinationRect = destinationRectFor(
+                            scaleMode = scaleMode,
+                            canvasWidth = hostSize.width,
+                            canvasHeight = hostSize.height,
+                            frameWidth = EmulatorFrameWidth,
+                            frameHeight = EmulatorFrameHeight,
+                        )
+                        if (
+                            x < destinationRect.left ||
+                            x > destinationRect.right ||
+                            y < destinationRect.top ||
+                            y > destinationRect.bottom
+                        ) {
+                            false
+                        } else {
+                            activePointerId = event.getPointerId(event.actionIndex)
+                            dispatchKoalaPosition(x, y)
+                            true
+                        }
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        val pointerId = activePointerId ?: return@pointerInteropFilter false
+                        val pointerIndex = event.findPointerIndex(pointerId)
+                        if (pointerIndex < 0) {
+                            activePointerId = null
+                            return@pointerInteropFilter true
+                        }
+                        for (historyIndex in 0 until event.historySize) {
+                            dispatchKoalaPosition(
+                                x = event.getHistoricalX(pointerIndex, historyIndex),
+                                y = event.getHistoricalY(pointerIndex, historyIndex),
+                            )
+                        }
+                        dispatchKoalaPosition(
+                            x = event.getX(pointerIndex),
+                            y = event.getY(pointerIndex),
+                        )
+                        true
+                    }
+
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        if (event.getPointerId(event.actionIndex) == activePointerId) {
+                            activePointerId = null
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        activePointerId = null
+                        true
+                    }
+
+                    else -> activePointerId != null
+                }
+            }
     }
 }
 
@@ -1867,7 +2010,10 @@ private fun LandscapeJoystickSessionLayout(
     onJoystickReleased: () -> Unit,
     onFirePressed: () -> Unit,
     onFireReleased: () -> Unit,
+    onKoalaRightTriggerPressed: () -> Unit,
+    onKoalaRightTriggerReleased: () -> Unit,
     paddleActive: Boolean,
+    koalaActive: Boolean,
     paddlePosition: Float,
     onPaddlePositionChanged: (Float) -> Unit,
     onToggleInputLongPress: () -> Unit,
@@ -1881,6 +2027,10 @@ private fun LandscapeJoystickSessionLayout(
     val fireWidth = minOf(screenWidth * 0.18f, 180.dp)
     val topButtonWidth = 40.dp
     val escMapping = remember { AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ESCAPE) }
+    val koalaShortcutKey = emulatorSettings.koalaPadShortcutKey
+    val koalaShortcutMapping = remember(koalaShortcutKey) {
+        AtariKeyMapping(aKeyCode = koalaShortcutKey.toAKeyCode())
+    }
 
     Row(
         modifier = modifier,
@@ -1933,6 +2083,33 @@ private fun LandscapeJoystickSessionLayout(
                                 .height(70.dp)
                                 .padding(horizontal = 16.dp),
                         )
+                    } else if (koalaActive) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                FireButtonControl(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.59f)
+                                        .aspectRatio(1f),
+                                    onFirePressed = onKoalaRightTriggerPressed,
+                                    onFireReleased = onKoalaRightTriggerReleased,
+                                    hapticsEnabled = joystickHapticsEnabled,
+                                )
+                            }
+                            HoldableCompactTextButton(
+                                label = koalaShortcutKey.toLabel(),
+                                onPressed = { onFunctionKeyPressed(koalaShortcutMapping) },
+                                onReleased = { onFunctionKeyReleased(koalaShortcutMapping) },
+                                modifier = Modifier.fillMaxWidth(0.58f),
+                            )
+                        }
                     } else when (joystickInputStyle) {
                         JoystickInputStyle.STICK_8_WAY -> {
                             JoystickPadControl(
@@ -2595,6 +2772,7 @@ private fun FullScreenSettings(
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPaddlePotMinimumChanged: (Int) -> Unit,
+    onKoalaPadShortcutKeySelected: (KoalaPadShortcutKey) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onVideoStandardSelected: (VideoStandard) -> Unit,
     onUseFujiNet: () -> Unit,
@@ -2741,6 +2919,7 @@ private fun FullScreenSettings(
                         onMouseSpeedChanged = onMouseSpeedChanged,
                         onTouchscreenMouseSensitivityChanged = onTouchscreenMouseSensitivityChanged,
                         onPaddlePotMinimumChanged = onPaddlePotMinimumChanged,
+                        onKoalaPadShortcutKeySelected = onKoalaPadShortcutKeySelected,
                         onPauseOnAppSwitchChanged = onPauseOnAppSwitchChanged,
                         onResetToDefaults = onResetToDefaults,
                     )
@@ -3335,6 +3514,7 @@ private fun AppSettingsTab(
     onMouseSpeedChanged: (Int) -> Unit,
     onTouchscreenMouseSensitivityChanged: (Float) -> Unit,
     onPaddlePotMinimumChanged: (Int) -> Unit,
+    onKoalaPadShortcutKeySelected: (KoalaPadShortcutKey) -> Unit,
     onPauseOnAppSwitchChanged: (Boolean) -> Unit,
     onResetToDefaults: () -> Unit,
 ) {
@@ -3506,6 +3686,18 @@ private fun AppSettingsTab(
                 onValueChange = { onPaddlePotMinimumChanged(it.toInt().coerceIn(0, 228)) },
                 valueRange = 0f..228f,
                 steps = 227,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Koala shortcut key",
+                value = state.settings.koalaPadShortcutKey.toLabel(),
+                subtitle = "Key sent by the Koala Pad shortcut button.",
+                options = KoalaPadShortcutKey.entries.map { key ->
+                    PickerOption(value = key, label = key.toLabel())
+                },
+                selectedValue = state.settings.koalaPadShortcutKey,
+                onSelected = onKoalaPadShortcutKeySelected,
+                testTagPrefix = "koala-pad-shortcut-key",
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             SettingsPickerRow(
@@ -4080,6 +4272,92 @@ private fun JoystickInputStyle.toLabel(): String = when (this) {
 
 private fun Float.toSensitivityLabel(): String = String.format("%.2fx", this)
 
+private fun KoalaPadShortcutKey.toLabel(): String = when (this) {
+    KoalaPadShortcutKey.SPACE -> "Space"
+    KoalaPadShortcutKey.RETURN -> "Return"
+    KoalaPadShortcutKey.ESCAPE -> "Esc"
+    KoalaPadShortcutKey.TAB -> "Tab"
+    KoalaPadShortcutKey.A -> "A"
+    KoalaPadShortcutKey.B -> "B"
+    KoalaPadShortcutKey.C -> "C"
+    KoalaPadShortcutKey.D -> "D"
+    KoalaPadShortcutKey.E -> "E"
+    KoalaPadShortcutKey.F -> "F"
+    KoalaPadShortcutKey.G -> "G"
+    KoalaPadShortcutKey.H -> "H"
+    KoalaPadShortcutKey.I -> "I"
+    KoalaPadShortcutKey.J -> "J"
+    KoalaPadShortcutKey.K -> "K"
+    KoalaPadShortcutKey.L -> "L"
+    KoalaPadShortcutKey.M -> "M"
+    KoalaPadShortcutKey.N -> "N"
+    KoalaPadShortcutKey.O -> "O"
+    KoalaPadShortcutKey.P -> "P"
+    KoalaPadShortcutKey.Q -> "Q"
+    KoalaPadShortcutKey.R -> "R"
+    KoalaPadShortcutKey.S -> "S"
+    KoalaPadShortcutKey.T -> "T"
+    KoalaPadShortcutKey.U -> "U"
+    KoalaPadShortcutKey.V -> "V"
+    KoalaPadShortcutKey.W -> "W"
+    KoalaPadShortcutKey.X -> "X"
+    KoalaPadShortcutKey.Y -> "Y"
+    KoalaPadShortcutKey.Z -> "Z"
+    KoalaPadShortcutKey.NUM_0 -> "0"
+    KoalaPadShortcutKey.NUM_1 -> "1"
+    KoalaPadShortcutKey.NUM_2 -> "2"
+    KoalaPadShortcutKey.NUM_3 -> "3"
+    KoalaPadShortcutKey.NUM_4 -> "4"
+    KoalaPadShortcutKey.NUM_5 -> "5"
+    KoalaPadShortcutKey.NUM_6 -> "6"
+    KoalaPadShortcutKey.NUM_7 -> "7"
+    KoalaPadShortcutKey.NUM_8 -> "8"
+    KoalaPadShortcutKey.NUM_9 -> "9"
+}
+
+private fun KoalaPadShortcutKey.toAKeyCode(): Int = when (this) {
+    KoalaPadShortcutKey.SPACE -> AtariKeyCode.AKEY_SPACE
+    KoalaPadShortcutKey.RETURN -> AtariKeyCode.AKEY_RETURN
+    KoalaPadShortcutKey.ESCAPE -> AtariKeyCode.AKEY_ESCAPE
+    KoalaPadShortcutKey.TAB -> AtariKeyCode.AKEY_TAB
+    KoalaPadShortcutKey.A -> AtariKeyCode.AKEY_a
+    KoalaPadShortcutKey.B -> AtariKeyCode.AKEY_b
+    KoalaPadShortcutKey.C -> AtariKeyCode.AKEY_c
+    KoalaPadShortcutKey.D -> AtariKeyCode.AKEY_d
+    KoalaPadShortcutKey.E -> AtariKeyCode.AKEY_e
+    KoalaPadShortcutKey.F -> AtariKeyCode.AKEY_f
+    KoalaPadShortcutKey.G -> AtariKeyCode.AKEY_g
+    KoalaPadShortcutKey.H -> AtariKeyCode.AKEY_h
+    KoalaPadShortcutKey.I -> AtariKeyCode.AKEY_i
+    KoalaPadShortcutKey.J -> AtariKeyCode.AKEY_j
+    KoalaPadShortcutKey.K -> AtariKeyCode.AKEY_k
+    KoalaPadShortcutKey.L -> AtariKeyCode.AKEY_l
+    KoalaPadShortcutKey.M -> AtariKeyCode.AKEY_m
+    KoalaPadShortcutKey.N -> AtariKeyCode.AKEY_n
+    KoalaPadShortcutKey.O -> AtariKeyCode.AKEY_o
+    KoalaPadShortcutKey.P -> AtariKeyCode.AKEY_p
+    KoalaPadShortcutKey.Q -> AtariKeyCode.AKEY_q
+    KoalaPadShortcutKey.R -> AtariKeyCode.AKEY_r
+    KoalaPadShortcutKey.S -> AtariKeyCode.AKEY_s
+    KoalaPadShortcutKey.T -> AtariKeyCode.AKEY_t
+    KoalaPadShortcutKey.U -> AtariKeyCode.AKEY_u
+    KoalaPadShortcutKey.V -> AtariKeyCode.AKEY_v
+    KoalaPadShortcutKey.W -> AtariKeyCode.AKEY_w
+    KoalaPadShortcutKey.X -> AtariKeyCode.AKEY_x
+    KoalaPadShortcutKey.Y -> AtariKeyCode.AKEY_y
+    KoalaPadShortcutKey.Z -> AtariKeyCode.AKEY_z
+    KoalaPadShortcutKey.NUM_0 -> AtariKeyCode.AKEY_0
+    KoalaPadShortcutKey.NUM_1 -> AtariKeyCode.AKEY_1
+    KoalaPadShortcutKey.NUM_2 -> AtariKeyCode.AKEY_2
+    KoalaPadShortcutKey.NUM_3 -> AtariKeyCode.AKEY_3
+    KoalaPadShortcutKey.NUM_4 -> AtariKeyCode.AKEY_4
+    KoalaPadShortcutKey.NUM_5 -> AtariKeyCode.AKEY_5
+    KoalaPadShortcutKey.NUM_6 -> AtariKeyCode.AKEY_6
+    KoalaPadShortcutKey.NUM_7 -> AtariKeyCode.AKEY_7
+    KoalaPadShortcutKey.NUM_8 -> AtariKeyCode.AKEY_8
+    KoalaPadShortcutKey.NUM_9 -> AtariKeyCode.AKEY_9
+}
+
 private fun PortInputDevice.toLabel(): String = when (this) {
     PortInputDevice.NONE -> "None"
     PortInputDevice.TOUCHSCREEN_JOYSTICK -> "TouchPad joystick"
@@ -4088,6 +4366,7 @@ private fun PortInputDevice.toLabel(): String = when (this) {
     PortInputDevice.ATARI_ST_MOUSE -> "Atari ST mouse"
     PortInputDevice.AMIGA_MOUSE -> "Amiga mouse"
     PortInputDevice.PADDLE -> "Paddle"
+    PortInputDevice.KOALA_PAD -> "Koala Pad"
 }
 
 private fun PortInputDevice.toPortCode(controllerName: String? = null): String = when (this) {
@@ -4098,6 +4377,7 @@ private fun PortInputDevice.toPortCode(controllerName: String? = null): String =
     PortInputDevice.ATARI_ST_MOUSE -> "ST"
     PortInputDevice.AMIGA_MOUSE -> "AMI"
     PortInputDevice.PADDLE -> "PADL"
+    PortInputDevice.KOALA_PAD -> "KOA"
 }
 
 private fun String?.toControllerPortCode(fallback: String): String {
@@ -4390,6 +4670,8 @@ private val PortraitInputDrawerContentThreshold = 56.dp
 private const val PortraitInputDrawerCollapseFraction = 0.02f
 private const val PortraitInputDrawerExpandSnapFraction = 0.98f
 private const val EmulatorDisplayAspectRatio = 4f / 3f
+private const val EmulatorFrameWidth = 320
+private const val EmulatorFrameHeight = 240
 private val DSubBadgeShape = GenericShape { size, _ ->
     val inset = size.width * 0.16f
     moveTo(0f, 0f)

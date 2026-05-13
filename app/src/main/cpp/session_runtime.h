@@ -64,6 +64,8 @@ public:
     void SetConsoleKeys(jboolean start, jboolean select, jboolean option);
     void SetJoystickState(jint port, jfloat x, jfloat y, jboolean fire);
     void SetPaddleState(jint port, jfloat position, jboolean fire);
+    void SetKoalaPadPosition(jint port, jint x_pot, jint y_pot);
+    void SetKoalaPadTriggers(jint port, jboolean left_fire, jboolean right_fire);
     void SetPaddlePotMinimum(jint value);
     void SetMouseConfig(jint mode, jint port, jint speed);
     void SetMouseState(jint delta_x, jint delta_y, jint buttons_mask);
@@ -87,6 +89,7 @@ private:
     void ApplyPendingControlStateLocked();
     void ApplyPendingJoystickStateLocked();
     void ApplyPendingPaddleStateLocked();
+    void ApplyPendingKoalaPadStateLocked();
     void ApplyPendingMouseStateLocked();
     void ResetQueuedAudioLocked();
     void ProduceAudioFrameLocked();
@@ -136,6 +139,11 @@ private:
     std::array<float, 4> pending_paddle_position_{};
     std::array<bool, 4> pending_paddle_fire_{};
     std::array<bool, 4> pending_paddle_dirty_{};
+    std::array<int, 4> pending_koala_x_pot_{228, 228, 228, 228};
+    std::array<int, 4> pending_koala_y_pot_{228, 228, 228, 228};
+    std::array<bool, 4> pending_koala_left_fire_{};
+    std::array<bool, 4> pending_koala_right_fire_{};
+    std::array<bool, 4> pending_koala_dirty_{};
     int paddle_pot_minimum_ = 114;
     int mouse_mode_ = 0;
     int mouse_port_ = 0;

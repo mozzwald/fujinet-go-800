@@ -14,12 +14,12 @@ The shipped app is built from a mix of original project code plus modified upstr
 
 - Atari800
   - upstream repo: `https://github.com/mozzwald/atari800`
-  - pinned branch: `netsio-feb2026`
-  - pinned commit: `a240a3e02ea7110426b59569f7d87633e9082edd`
+  - pinned branch: `android`
+  - pinned commit: `c6d257c74246c629f6f83f43ae3415b202c160b3`
 - FujiNet firmware
   - upstream repo: `https://github.com/mozzwald/fujinet-firmware`
   - pinned branch: `android`
-  - pinned commit: `6d8d610f37e403dea8e8f88f8ab0fda0283a06eb`
+  - pinned commit: `1efc3198125e736002c1c2fad499c9a95c6979e6`
 
 ## Build Requirements
 

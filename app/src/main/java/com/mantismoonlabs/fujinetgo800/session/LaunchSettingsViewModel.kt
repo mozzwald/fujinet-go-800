@@ -17,6 +17,7 @@ import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
 import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
+import com.mantismoonlabs.fujinetgo800.settings.KoalaPadShortcutKey
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
 import com.mantismoonlabs.fujinetgo800.settings.NtscFilterPreset
@@ -452,6 +453,8 @@ class LaunchSettingsViewModel(
         JoystickPort.entries.forEach { joystickPort ->
             sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
             sessionRepository.setPaddleState(port = joystickPort.index, position = 0.5f, fire = false)
+            sessionRepository.setKoalaPadPosition(port = joystickPort.index, xPot = 228, yPot = 228)
+            sessionRepository.setKoalaPadTriggers(joystickPort.index, leftPressed = false, rightPressed = false)
         }
         dispatchRuntimeSettingsIfRunning()
         persistChange {
@@ -471,6 +474,8 @@ class LaunchSettingsViewModel(
         JoystickPort.entries.forEach { joystickPort ->
             sessionRepository.setJoystickState(port = joystickPort.index, x = 0f, y = 0f, fire = false)
             sessionRepository.setPaddleState(port = joystickPort.index, position = 0.5f, fire = false)
+            sessionRepository.setKoalaPadPosition(port = joystickPort.index, xPot = 228, yPot = 228)
+            sessionRepository.setKoalaPadTriggers(joystickPort.index, leftPressed = false, rightPressed = false)
         }
         dispatchRuntimeSettingsIfRunning()
         persistChange {
@@ -503,6 +508,13 @@ class LaunchSettingsViewModel(
         dispatchRuntimeSettingsIfRunning()
         persistChange {
             settingsRepository.updatePaddlePotMinimum(normalizedValue)
+        }
+    }
+
+    fun onKoalaPadShortcutKeySelected(key: KoalaPadShortcutKey) {
+        editableSettings.update { settings -> settings.copy(koalaPadShortcutKey = key) }
+        persistChange {
+            settingsRepository.updateKoalaPadShortcutKey(key)
         }
     }
 

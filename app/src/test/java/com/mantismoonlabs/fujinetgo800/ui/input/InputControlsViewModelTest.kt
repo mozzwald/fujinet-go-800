@@ -9,7 +9,9 @@ import com.mantismoonlabs.fujinetgo800.session.SessionRepository
 import com.mantismoonlabs.fujinetgo800.session.SessionState
 import com.mantismoonlabs.fujinetgo800.settings.ControlMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
+import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
+import com.mantismoonlabs.fujinetgo800.settings.PortInputDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -173,6 +175,62 @@ class InputControlsViewModelTest {
             listOf(
                 SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = true),
                 SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
+    @Test
+    fun koalaPadTriggerButtonsDispatchLeftAndRightState() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        settingsRepository.updateControlMode(ControlMode.JOYSTICK)
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_2, PortInputDevice.KOALA_PAD)
+        advanceUntilIdle()
+
+        viewModel.onFirePressed()
+        viewModel.onKoalaRightTriggerPressed()
+        viewModel.onFireReleased()
+        viewModel.onKoalaRightTriggerReleased()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = true, rightPressed = false),
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = true, rightPressed = true),
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = false, rightPressed = true),
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = false, rightPressed = false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
+    @Test
+    fun koalaPadTriggerStateResetsWhenInputDeviceChanges() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        settingsRepository.updateControlMode(ControlMode.JOYSTICK)
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_2, PortInputDevice.KOALA_PAD)
+        advanceUntilIdle()
+
+        viewModel.onFirePressed()
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_1, PortInputDevice.TOUCHSCREEN_JOYSTICK)
+        advanceUntilIdle()
+
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_2, PortInputDevice.KOALA_PAD)
+        advanceUntilIdle()
+        viewModel.onKoalaRightTriggerPressed()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = true, rightPressed = false),
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = false, rightPressed = false),
+                SessionCommand.SetKoalaPadTriggers(port = 1, leftPressed = false, rightPressed = true),
             ),
             sessionRepository.commands,
         )

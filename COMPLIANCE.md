@@ -29,8 +29,8 @@ Atari800 is fetched by:
 Pinned upstream:
 
 - upstream repo: `https://github.com/mozzwald/atari800`
-- branch: `netsio-feb2026`
-- commit: `a240a3e02ea7110426b59569f7d87633e9082edd`
+- branch: `android`
+- commit: `c6d257c74246c629f6f83f43ae3415b202c160b3`
 
 Local modifications are applied from:
 
@@ -52,7 +52,7 @@ Pinned upstream:
 
 - upstream repo: `https://github.com/mozzwald/fujinet-firmware`
 - branch: `android`
-- commit: `6d8d610f37e403dea8e8f88f8ab0fda0283a06eb`
+- commit: `1efc3198125e736002c1c2fad499c9a95c6979e6`
 
 Local modifications are represented by:
 

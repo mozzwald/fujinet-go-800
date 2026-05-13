@@ -35,6 +35,7 @@ extern "C" {
 
 extern "C" void PLATFORM_SetJoystick(int port, uint8_t stick_code, uint8_t trig_pressed);
 extern "C" void PLATFORM_SetPaddle(int port, uint8_t pot_value, uint8_t trig_pressed);
+extern "C" void PLATFORM_SetKoalaPad(int port, uint8_t x_pot_value, uint8_t y_pot_value, uint8_t left_trig_pressed, uint8_t right_trig_pressed);
 extern "C" void FujiNetAndroid_MixAudio(int16_t* output, int sampleCount, int outputSampleRate);
 extern "C" void FujiNetAndroid_ClearAudio();
 
@@ -601,6 +602,26 @@ void SessionRuntime::SetPaddleState(jint port, jfloat position, jboolean fire) {
     pending_paddle_dirty_[port] = true;
 }
 
+void SessionRuntime::SetKoalaPadPosition(jint port, jint x_pot, jint y_pot) {
+    if (port < 0 || port >= static_cast<jint>(pending_koala_x_pot_.size())) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(input_mutex_);
+    pending_koala_x_pot_[port] = std::max(0, std::min(228, static_cast<int>(x_pot)));
+    pending_koala_y_pot_[port] = std::max(0, std::min(228, static_cast<int>(y_pot)));
+    pending_koala_dirty_[port] = true;
+}
+
+void SessionRuntime::SetKoalaPadTriggers(jint port, jboolean left_fire, jboolean right_fire) {
+    if (port < 0 || port >= static_cast<jint>(pending_koala_left_fire_.size())) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(input_mutex_);
+    pending_koala_left_fire_[port] = left_fire == JNI_TRUE;
+    pending_koala_right_fire_[port] = right_fire == JNI_TRUE;
+    pending_koala_dirty_[port] = true;
+}
+
 void SessionRuntime::SetPaddlePotMinimum(jint value) {
     std::lock_guard<std::mutex> lock(input_mutex_);
     paddle_pot_minimum_ = std::max(0, std::min(228, static_cast<int>(value)));
@@ -1076,6 +1097,29 @@ void SessionRuntime::ApplyPendingPaddleStateLocked() {
     }
 }
 
+void SessionRuntime::ApplyPendingKoalaPadStateLocked() {
+    std::lock_guard<std::mutex> input_lock(input_mutex_);
+    for (size_t i = 0; i < pending_koala_dirty_.size(); ++i) {
+        if (!pending_koala_dirty_[i]) {
+            continue;
+        }
+        const auto x_pot = static_cast<uint8_t>(
+                std::max(0, std::min(228, pending_koala_x_pot_[i]))
+        );
+        const auto y_pot = static_cast<uint8_t>(
+                std::max(0, std::min(228, pending_koala_y_pot_[i]))
+        );
+        PLATFORM_SetKoalaPad(
+                static_cast<int>(i),
+                x_pot,
+                y_pot,
+                pending_koala_left_fire_[i] ? 1 : 0,
+                pending_koala_right_fire_[i] ? 1 : 0
+        );
+        pending_koala_dirty_[i] = false;
+    }
+}
+
 void SessionRuntime::ApplyPendingMouseStateLocked() {
     bool center_requested = false;
     std::lock_guard<std::mutex> input_lock(input_mutex_);
@@ -1188,6 +1232,7 @@ void SessionRuntime::RunFrame(uint8_t* dst, int stride) {
     if (core_ready_ && Screen_atari != nullptr) {
         ApplyPendingJoystickStateLocked();
         ApplyPendingPaddleStateLocked();
+        ApplyPendingKoalaPadStateLocked();
         ApplyPendingMouseStateLocked();
         Atari800_Frame();
         INPUT_mouse_delta_x = 0;

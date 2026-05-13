@@ -153,3 +153,14 @@ void PLATFORM_SetPaddle(int port, uint8_t pot_value, uint8_t trig_pressed) {
     g_trig_port[port] = trig_pressed ? 0 : 1; // pressed -> 0
     g_pot_input[port * 2] = pot_value;
 }
+
+void PLATFORM_SetKoalaPad(int port, uint8_t x_pot_value, uint8_t y_pot_value, uint8_t left_trig_pressed, uint8_t right_trig_pressed) {
+    if (port < 0 || port > 3) return;
+    uint8_t stick = INPUT_STICK_CENTRE;
+    if (left_trig_pressed) stick &= ~0x04;
+    if (right_trig_pressed) stick &= ~0x08;
+    g_stick_port[port] = stick;
+    g_trig_port[port] = 1;
+    g_pot_input[port * 2] = x_pot_value;
+    g_pot_input[(port * 2) + 1] = y_pot_value;
+}

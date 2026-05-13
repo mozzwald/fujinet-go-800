@@ -94,6 +94,8 @@ object EmulatorNative {
     external fun setConsoleKeys(start: Boolean, select: Boolean, option: Boolean)
     external fun setJoystickState(port: Int, x: Float, y: Float, fire: Boolean)
     external fun setPaddleState(port: Int, position: Float, fire: Boolean)
+    external fun setKoalaPadPosition(port: Int, xPot: Int, yPot: Int)
+    external fun setKoalaPadTriggers(port: Int, leftPressed: Boolean, rightPressed: Boolean)
     external fun setMouseState(deltaX: Int, deltaY: Int, buttonsMask: Int)
 
     fun startSession(

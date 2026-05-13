@@ -14,11 +14,13 @@ import com.mantismoonlabs.fujinetgo800.settings.ControlMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
+import com.mantismoonlabs.fujinetgo800.settings.koalaPadPort
 import com.mantismoonlabs.fujinetgo800.settings.paddlePort
 import com.mantismoonlabs.fujinetgo800.settings.touchscreenJoystickPort
 import com.mantismoonlabs.fujinetgo800.session.SessionRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -53,6 +55,9 @@ class InputControlsViewModel(
     private val consoleKeysPressed = linkedSetOf<AtariConsoleKey>()
     private var paddlePosition = 0.5f
     private var paddleFirePressed = false
+    private var koalaLeftTriggerPressed = false
+    private var koalaRightTriggerPressed = false
+    private var koalaTriggerPort: Int? = null
     private val joystickDispatcher = TouchJoystickDispatcher(
         portProvider = {
             uiState.value.settings.touchscreenJoystickPort()?.index
@@ -62,9 +67,24 @@ class InputControlsViewModel(
         },
     )
 
+    init {
+        viewModelScope.launch {
+            settingsRepository.settings
+                .map { settings -> settings.koalaPadPort()?.index }
+                .distinctUntilChanged()
+                .collect { port ->
+                    if (port != koalaTriggerPort) {
+                        releaseKoalaTriggersIfNeeded()
+                        koalaTriggerPort = null
+                    }
+                }
+        }
+    }
+
     fun onControlModeSelected(controlMode: ControlMode) {
         if (controlMode != ControlMode.JOYSTICK) {
             joystickDispatcher.reset()
+            releaseKoalaTriggersIfNeeded()
         }
         viewModelScope.launch {
             settingsRepository.updateControlMode(controlMode)
@@ -214,7 +234,23 @@ class InputControlsViewModel(
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = true)
             return
         }
+        uiState.value.settings.koalaPadPort()?.index?.let { port ->
+            resetKoalaTriggerStateIfPortChanged(port)
+            koalaLeftTriggerPressed = true
+            sessionRepository.setKoalaPadTriggers(port, koalaLeftTriggerPressed, koalaRightTriggerPressed)
+            return
+        }
         joystickDispatcher.pressFire()
+    }
+
+    fun onKoalaRightTriggerPressed() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        val port = uiState.value.settings.koalaPadPort()?.index ?: return
+        resetKoalaTriggerStateIfPortChanged(port)
+        koalaRightTriggerPressed = true
+        sessionRepository.setKoalaPadTriggers(port, koalaLeftTriggerPressed, koalaRightTriggerPressed)
     }
 
     fun onFireReleased() {
@@ -226,7 +262,44 @@ class InputControlsViewModel(
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
             return
         }
+        uiState.value.settings.koalaPadPort()?.index?.let { port ->
+            resetKoalaTriggerStateIfPortChanged(port)
+            koalaLeftTriggerPressed = false
+            sessionRepository.setKoalaPadTriggers(port, koalaLeftTriggerPressed, koalaRightTriggerPressed)
+            return
+        }
         joystickDispatcher.releaseFire()
+    }
+
+    fun onKoalaRightTriggerReleased() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        val port = uiState.value.settings.koalaPadPort()?.index ?: return
+        resetKoalaTriggerStateIfPortChanged(port)
+        koalaRightTriggerPressed = false
+        sessionRepository.setKoalaPadTriggers(port, koalaLeftTriggerPressed, koalaRightTriggerPressed)
+    }
+
+    private fun resetKoalaTriggerStateIfPortChanged(port: Int) {
+        if (koalaTriggerPort == port) {
+            return
+        }
+        koalaTriggerPort = port
+        koalaLeftTriggerPressed = false
+        koalaRightTriggerPressed = false
+    }
+
+    private fun releaseKoalaTriggersIfNeeded() {
+        val port = koalaTriggerPort ?: uiState.value.settings.koalaPadPort()?.index ?: return
+        if (!koalaLeftTriggerPressed && !koalaRightTriggerPressed) {
+            koalaTriggerPort = null
+            return
+        }
+        koalaLeftTriggerPressed = false
+        koalaRightTriggerPressed = false
+        koalaTriggerPort = null
+        sessionRepository.setKoalaPadTriggers(port, leftPressed = false, rightPressed = false)
     }
 
     override fun onCleared() {
@@ -237,6 +310,12 @@ class InputControlsViewModel(
         uiState.value.settings.paddlePort()?.index?.let { port ->
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
         }
+        uiState.value.settings.koalaPadPort()?.index?.let { port ->
+            koalaLeftTriggerPressed = false
+            koalaRightTriggerPressed = false
+            sessionRepository.setKoalaPadTriggers(port, leftPressed = false, rightPressed = false)
+        }
+        koalaTriggerPort = null
         super.onCleared()
     }
 

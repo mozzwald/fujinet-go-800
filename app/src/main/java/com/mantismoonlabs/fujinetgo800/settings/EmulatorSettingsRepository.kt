@@ -68,6 +68,7 @@ internal object EmulatorSettingsPreferenceKeys {
     val mouseSpeed = intPreferencesKey("mouse_speed")
     val touchscreenMouseSensitivity = floatPreferencesKey("touchscreen_mouse_sensitivity")
     val paddlePotMinimum = intPreferencesKey("paddle_pot_minimum")
+    val koalaPadShortcutKey = stringPreferencesKey("koala_pad_shortcut_key")
     val videoStandard = stringPreferencesKey("video_standard")
     val ntscFilterPreset = stringPreferencesKey("ntsc_filter_preset")
     val ntscFilterSharpness = floatPreferencesKey("ntsc_filter_sharpness")
@@ -309,6 +310,12 @@ class EmulatorSettingsRepository private constructor(
         }
     }
 
+    suspend fun updateKoalaPadShortcutKey(key: KoalaPadShortcutKey) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.koalaPadShortcutKey] = key.name
+        }
+    }
+
     suspend fun updateVideoStandard(videoStandard: VideoStandard) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.videoStandard] = videoStandard.name
@@ -518,7 +525,11 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
         touchscreenMouseSensitivity = (
             this[EmulatorSettingsPreferenceKeys.touchscreenMouseSensitivity] ?: 1.5f
             ).coerceIn(0.25f, 4f),
-        paddlePotMinimum = (this[EmulatorSettingsPreferenceKeys.paddlePotMinimum] ?: 114).coerceIn(0, 228),
+        paddlePotMinimum = (this[EmulatorSettingsPreferenceKeys.paddlePotMinimum] ?: 95).coerceIn(0, 228),
+        koalaPadShortcutKey = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.koalaPadShortcutKey,
+            defaultValue = KoalaPadShortcutKey.SPACE,
+        ),
         videoStandard = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.videoStandard,
             defaultValue = VideoStandard.NTSC,

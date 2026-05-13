@@ -6,8 +6,8 @@ This repository depends on third-party open source software. The list below is a
 
 - project: Atari800
 - upstream repo: `https://github.com/mozzwald/atari800`
-- pinned branch used by this repo: `netsio-feb2026`
-- pinned commit used by this repo: `a240a3e02ea7110426b59569f7d87633e9082edd`
+- pinned branch used by this repo: `android`
+- pinned commit used by this repo: `c6d257c74246c629f6f83f43ae3415b202c160b3`
 - local integration files:
   - [`tools/atari800/build-atari800-source.sh`](./tools/atari800/build-atari800-source.sh)
   - [`tools/atari800/patches/`](./tools/atari800/patches/)
@@ -21,7 +21,7 @@ This repository applies local patches to the fetched Atari800 source before stag
 - project: FujiNet firmware
 - upstream repo: `https://github.com/mozzwald/fujinet-firmware`
 - pinned branch used by this repo: `android`
-- pinned commit used by this repo: `6d8d610f37e403dea8e8f88f8ab0fda0283a06eb`
+- pinned commit used by this repo: `1efc3198125e736002c1c2fad499c9a95c6979e6`
 - local integration files:
   - [`tools/fujinet/build-fujinet.sh`](./tools/fujinet/build-fujinet.sh)
   - [`tools/fujinet/patches/`](./tools/fujinet/patches/)

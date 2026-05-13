@@ -129,6 +129,8 @@ class EmulatorSessionService : LifecycleService() {
                 setConsoleKeys = EmulatorNative::setConsoleKeys,
                 setJoystickState = EmulatorNative::setJoystickState,
                 setPaddleState = EmulatorNative::setPaddleState,
+                setKoalaPadPosition = EmulatorNative::setKoalaPadPosition,
+                setKoalaPadTriggers = EmulatorNative::setKoalaPadTriggers,
                 setPaddlePotMinimum = EmulatorNative::setPaddlePotMinimum,
                 setMouseConfig = EmulatorNative::setMouseConfig,
                 setMouseState = EmulatorNative::setMouseState,
@@ -325,6 +327,8 @@ class EmulatorSessionService : LifecycleService() {
             is SessionCommand.SetConsoleKeys,
             is SessionCommand.SetJoystickState,
             is SessionCommand.SetPaddleState,
+            is SessionCommand.SetKoalaPadPosition,
+            is SessionCommand.SetKoalaPadTriggers,
             is SessionCommand.SetMouseState -> {
                 updateState(controller.dispatch(command))
                 syncSurfaceStateFromController()
@@ -726,7 +730,7 @@ internal class EmulatorSessionController(
             runCatching {
                 runtime.ensureFujiNetReady()
             }.onFailure { error ->
-                Log.e(LogTag, "Controller ensureFujiNetReady failed", error)
+                logError("Controller ensureFujiNetReady failed", error)
                 state = SessionState.Failed(
                     launchMode = LaunchMode.FUJINET_ENABLED,
                     reason = error.toFujiNetFailureReason(),
@@ -905,6 +909,18 @@ internal class EmulatorSessionController(
                 }
             }
 
+            is SessionCommand.SetKoalaPadPosition -> {
+                if (state is SessionState.Running) {
+                    runtime.setKoalaPadPosition(command.port, command.xPot, command.yPot)
+                }
+            }
+
+            is SessionCommand.SetKoalaPadTriggers -> {
+                if (state is SessionState.Running) {
+                    runtime.setKoalaPadTriggers(command.port, command.leftPressed, command.rightPressed)
+                }
+            }
+
             is SessionCommand.SetMouseState -> {
                 if (state is SessionState.Running) {
                     runtime.setMouseState(command.deltaX, command.deltaY, command.buttonsMask)
@@ -1017,6 +1033,10 @@ internal class EmulatorSessionController(
 
     private fun logInfo(message: String) {
         runCatching { Log.i(LogTag, message) }
+    }
+
+    private fun logError(message: String, error: Throwable) {
+        runCatching { Log.e(LogTag, message, error) }
     }
 
     private fun configureRuntimeBeforeStart() {
@@ -1144,6 +1164,8 @@ internal data class EmulatorSessionRuntime(
     val setConsoleKeys: (Boolean, Boolean, Boolean) -> Unit,
     val setJoystickState: (Int, Float, Float, Boolean) -> Unit,
     val setPaddleState: (Int, Float, Boolean) -> Unit = { _, _, _ -> },
+    val setKoalaPadPosition: (Int, Int, Int) -> Unit = { _, _, _ -> },
+    val setKoalaPadTriggers: (Int, Boolean, Boolean) -> Unit = { _, _, _ -> },
     val setPaddlePotMinimum: (Int) -> Unit = {},
     val setMouseConfig: (Int, Int, Int) -> Unit = { _, _, _ -> },
     val setMouseState: (Int, Int, Int) -> Unit = { _, _, _ -> },

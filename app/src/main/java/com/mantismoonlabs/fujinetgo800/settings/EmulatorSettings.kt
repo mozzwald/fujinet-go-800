@@ -32,6 +32,49 @@ enum class JoystickInputStyle {
     DPAD_4_WAY,
 }
 
+enum class KoalaPadShortcutKey {
+    SPACE,
+    RETURN,
+    ESCAPE,
+    TAB,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    NUM_0,
+    NUM_1,
+    NUM_2,
+    NUM_3,
+    NUM_4,
+    NUM_5,
+    NUM_6,
+    NUM_7,
+    NUM_8,
+    NUM_9,
+}
+
 enum class JoystickPort(val index: Int) {
     PORT_1(0),
     PORT_2(1),
@@ -47,6 +90,7 @@ enum class PortInputDevice {
     ATARI_ST_MOUSE,
     AMIGA_MOUSE,
     PADDLE,
+    KOALA_PAD,
 }
 
 enum class VideoStandard {
@@ -164,6 +208,7 @@ data class EmulatorSettings(
     val mouseSpeed: Int = 3,
     val touchscreenMouseSensitivity: Float = 1.5f,
     val paddlePotMinimum: Int = 95,
+    val koalaPadShortcutKey: KoalaPadShortcutKey = KoalaPadShortcutKey.SPACE,
     val videoStandard: VideoStandard = VideoStandard.NTSC,
     val ntscFilter: NtscFilterSettings = NtscFilterSettings(),
     val xlxeRomPath: String? = null,
@@ -244,18 +289,25 @@ fun EmulatorSettings.hardwareControllerNameFor(port: JoystickPort): String? = wh
 
 fun EmulatorSettings.withInputDeviceFor(port: JoystickPort, device: PortInputDevice): EmulatorSettings {
     var updated = this
-    if (device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE) {
+    if (
+        device == PortInputDevice.TOUCHSCREEN_JOYSTICK ||
+        device == PortInputDevice.PADDLE ||
+        device == PortInputDevice.KOALA_PAD
+    ) {
         JoystickPort.entries.forEach { existingPort ->
             if (
                 updated.inputDeviceFor(existingPort) == PortInputDevice.TOUCHSCREEN_JOYSTICK ||
-                updated.inputDeviceFor(existingPort) == PortInputDevice.PADDLE
+                updated.inputDeviceFor(existingPort) == PortInputDevice.PADDLE ||
+                updated.inputDeviceFor(existingPort) == PortInputDevice.KOALA_PAD ||
+                (device == PortInputDevice.KOALA_PAD && updated.inputDeviceFor(existingPort).isMouse)
             ) {
                 updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
             }
         }
     } else if (device.isMouse) {
         JoystickPort.entries.forEach { existingPort ->
-            if (updated.inputDeviceFor(existingPort).isMouse) {
+            val existingDevice = updated.inputDeviceFor(existingPort)
+            if (existingDevice.isMouse || existingDevice == PortInputDevice.KOALA_PAD) {
                 updated = updated.setInputDeviceForPort(existingPort, PortInputDevice.NONE)
             }
         }
@@ -299,17 +351,29 @@ fun EmulatorSettings.normalizedInputPorts(): EmulatorSettings {
     )
     var touchscreenSeen = false
     var mouseSeen = false
+    var koalaSeen = false
     JoystickPort.entries.forEach { port ->
         val device = normalized.inputDeviceFor(port)
         val replacement = when {
-            (device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE) && touchscreenSeen ->
+            (
+                device == PortInputDevice.TOUCHSCREEN_JOYSTICK ||
+                device == PortInputDevice.PADDLE ||
+                device == PortInputDevice.KOALA_PAD
+                ) && touchscreenSeen ->
                 PortInputDevice.NONE
-            device == PortInputDevice.TOUCHSCREEN_JOYSTICK || device == PortInputDevice.PADDLE -> {
+            device == PortInputDevice.KOALA_PAD && mouseSeen -> PortInputDevice.NONE
+            device == PortInputDevice.TOUCHSCREEN_JOYSTICK ||
+                device == PortInputDevice.PADDLE ||
+                device == PortInputDevice.KOALA_PAD -> {
                 touchscreenSeen = true
+                if (device == PortInputDevice.KOALA_PAD) {
+                    koalaSeen = true
+                }
                 device
             }
-            device.isMouse && mouseSeen -> PortInputDevice.NONE
-            device.isMouse -> {
+            device.isMouse && koalaSeen -> PortInputDevice.NONE
+            (device.isMouse || device == PortInputDevice.KOALA_PAD) && mouseSeen -> PortInputDevice.NONE
+            device.isMouse || device == PortInputDevice.KOALA_PAD -> {
                 mouseSeen = true
                 device
             }
@@ -350,6 +414,12 @@ fun EmulatorSettings.mousePort(): JoystickPort? {
 
 fun EmulatorSettings.mouseDevice(): PortInputDevice? {
     return mousePort()?.let(::inputDeviceFor)
+}
+
+fun EmulatorSettings.koalaPadPort(): JoystickPort? {
+    return JoystickPort.entries.firstOrNull { port ->
+        inputDeviceFor(port) == PortInputDevice.KOALA_PAD
+    }
 }
 
 val PortInputDevice.isMouse: Boolean

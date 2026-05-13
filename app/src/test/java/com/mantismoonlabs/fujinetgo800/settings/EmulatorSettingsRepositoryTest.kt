@@ -197,4 +197,60 @@ class EmulatorSettingsRepositoryTest {
             repository.settings.first(),
         )
     }
+
+    @Test
+    fun koalaPadInputDeviceSelectionNormalizesConflictingDevices() = runTest {
+        val repository = EmulatorSettingsRepository.createForTest(
+            produceFile = { temporaryFolder.newFile("koala-port-input.preferences_pb") },
+            scope = CoroutineScope(coroutineContext + Job()),
+        )
+
+        repository.updatePortInputDevice(JoystickPort.PORT_1, PortInputDevice.ATARI_ST_MOUSE)
+        repository.updatePortInputDevice(JoystickPort.PORT_2, PortInputDevice.TOUCHSCREEN_JOYSTICK)
+        repository.updatePortInputDevice(JoystickPort.PORT_3, PortInputDevice.KOALA_PAD)
+
+        assertEquals(
+            EmulatorSettings(
+                port1InputDevice = PortInputDevice.NONE,
+                port2InputDevice = PortInputDevice.NONE,
+                port3InputDevice = PortInputDevice.KOALA_PAD,
+            ),
+            repository.settings.first(),
+        )
+
+        repository.updatePortInputDevice(JoystickPort.PORT_4, PortInputDevice.AMIGA_MOUSE)
+
+        assertEquals(
+            EmulatorSettings(
+                port1InputDevice = PortInputDevice.NONE,
+                port2InputDevice = PortInputDevice.NONE,
+                port3InputDevice = PortInputDevice.NONE,
+                port4InputDevice = PortInputDevice.AMIGA_MOUSE,
+            ),
+            repository.settings.first(),
+        )
+    }
+
+    @Test
+    fun persistsKoalaPadShortcutKey() = runTest {
+        val settingsFile = temporaryFolder.newFile("koala-shortcut.preferences_pb")
+        val firstScope = CoroutineScope(coroutineContext + Job())
+        val firstRepository = EmulatorSettingsRepository.createForTest(
+            produceFile = { settingsFile },
+            scope = firstScope,
+        )
+
+        firstRepository.updateKoalaPadShortcutKey(KoalaPadShortcutKey.RETURN)
+        firstScope.coroutineContext[Job]?.cancel()
+
+        val reloadedRepository = EmulatorSettingsRepository.createForTest(
+            produceFile = { settingsFile },
+            scope = CoroutineScope(coroutineContext + Job()),
+        )
+
+        assertEquals(
+            KoalaPadShortcutKey.RETURN,
+            reloadedRepository.settings.first().koalaPadShortcutKey,
+        )
+    }
 }
