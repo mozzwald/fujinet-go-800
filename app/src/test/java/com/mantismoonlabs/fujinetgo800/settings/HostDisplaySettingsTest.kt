@@ -67,6 +67,82 @@ class HostDisplaySettingsTest {
     }
 
     @Test
+    fun fitAndIntegerRemainCenteredInUltraWideWindow() {
+        assertEquals(
+            DestinationRectBounds(left = 600, top = 0, right = 1800, bottom = 900),
+            destinationRectBoundsFor(
+                scaleMode = ScaleMode.FIT,
+                canvasWidth = 2400,
+                canvasHeight = 900,
+                frameWidth = 320,
+                frameHeight = 240,
+            ),
+        )
+        assertEquals(
+            DestinationRectBounds(left = 720, top = 90, right = 1680, bottom = 810),
+            destinationRectBoundsFor(
+                scaleMode = ScaleMode.INTEGER,
+                canvasWidth = 2400,
+                canvasHeight = 900,
+                frameWidth = 320,
+                frameHeight = 240,
+            ),
+        )
+    }
+
+    @Test
+    fun fitRemainsCenteredInTallFoldPane() {
+        assertEquals(
+            DestinationRectBounds(left = 0, top = 540, right = 960, bottom = 1260),
+            destinationRectBoundsFor(
+                scaleMode = ScaleMode.FIT,
+                canvasWidth = 960,
+                canvasHeight = 1800,
+                frameWidth = 320,
+                frameHeight = 240,
+            ),
+        )
+    }
+
+    @Test
+    fun normalizedInputRejectsLetterboxAndMapsFrameCorners() {
+        val outside = normalizedDestinationPositionFor(
+            scaleMode = ScaleMode.FIT,
+            canvasWidth = 1000,
+            canvasHeight = 1000,
+            frameWidth = 320,
+            frameHeight = 240,
+            x = 500f,
+            y = 50f,
+            clampToBounds = false,
+        )
+        val topLeft = normalizedDestinationPositionFor(
+            scaleMode = ScaleMode.FIT,
+            canvasWidth = 1000,
+            canvasHeight = 1000,
+            frameWidth = 320,
+            frameHeight = 240,
+            x = 0f,
+            y = 125f,
+            clampToBounds = false,
+        )
+        val bottomRight = normalizedDestinationPositionFor(
+            scaleMode = ScaleMode.FIT,
+            canvasWidth = 1000,
+            canvasHeight = 1000,
+            frameWidth = 320,
+            frameHeight = 240,
+            x = 1000f,
+            y = 875f,
+            clampToBounds = false,
+        )
+
+        assertEquals(null, outside)
+        assertEquals(NormalizedDestinationPosition(0f, 0f), topLeft)
+        assertEquals(NormalizedDestinationPosition(1f, 1f), bottomRight)
+    }
+
+    @Test
     fun keepScreenOnStateIsAppliedOnTheHostView() {
         val appliedStates = mutableListOf<Boolean>()
 

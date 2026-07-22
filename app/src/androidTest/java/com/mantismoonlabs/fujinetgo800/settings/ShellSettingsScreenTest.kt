@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mantismoonlabs.fujinetgo800.MainActivity
@@ -88,6 +89,25 @@ class ShellSettingsScreenTest {
         composeRule.onNodeWithText("FujiNet:", substring = true).assertExists()
         composeRule.onNodeWithText("Atari800:", substring = true).assertExists()
         composeRule.onNodeWithText("Close").performClick()
+    }
+
+    @Test
+    fun backDismissesAboutDialogBeforeSettings() {
+        resetHostSettings()
+
+        openSettings()
+        composeRule.onNodeWithText("About").performClick()
+        composeRule.onNodeWithText("Project on GitHub").assertExists()
+
+        pressBack()
+        composeRule.onNodeWithText("Project on GitHub").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings-tab-machine").assertExists()
+
+        pressBack()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("settings-tab-machine").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithContentDescription("Settings").assertExists()
     }
 
     private fun resetHostSettings() {

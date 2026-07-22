@@ -11,6 +11,7 @@ import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +54,24 @@ class SessionShellLifecycleTest {
         waitForRunningSession()
         composeRule.onNodeWithText("Launch Session").assertDoesNotExist()
         composeRule.onNodeWithText("HELP").assertExists()
+    }
+
+    @Test
+    fun activityRecreationKeepsSessionAndInputMode() {
+        resetLaunchDefaults()
+        runBlocking {
+            settingsRepository().updateControlMode(ControlMode.JOYSTICK)
+        }
+        waitForRunningSession()
+
+        composeRule.activityRule.scenario.recreate()
+
+        waitForRunningSession()
+        composeRule.onNodeWithText("Launch Session").assertDoesNotExist()
+        assertEquals(
+            ControlMode.JOYSTICK,
+            runBlocking { settingsRepository().currentSettings().controlMode },
+        )
     }
 
     @Test

@@ -2,7 +2,6 @@ package com.mantismoonlabs.fujinetgo800.session
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Process
@@ -57,7 +56,6 @@ internal class EmulatorAudioPlayer(
         )
         .setTransferMode(AudioTrack.MODE_STREAM)
         .setBufferSizeInBytes(trackBufferSize)
-        .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
         .apply {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)

@@ -178,6 +178,10 @@ class MainDispatcherRule(
     }
 
     override fun finished(description: Description) {
+        // Repository cancellation can enqueue final ViewModel collector resumptions on Main.
+        // Drain them before removing the test dispatcher so they cannot escape into the gap
+        // between JUnit test methods.
+        dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
     }
 }

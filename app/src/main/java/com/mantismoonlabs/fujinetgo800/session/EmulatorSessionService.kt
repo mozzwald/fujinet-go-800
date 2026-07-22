@@ -206,6 +206,7 @@ class EmulatorSessionService : LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ActionTogglePause -> {
                 val running = state.value as? SessionState.Running

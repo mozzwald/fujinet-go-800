@@ -1,3 +1,10 @@
+# v1.3.0
+
+* Target Android 16 (API level 36) and identify the app as a game
+* Add adaptive large-screen and foldable layouts that avoid separating or occluding hinges
+* Preserve the immersive top bar and controls in hidden system-bar areas in portrait and landscape
+* Add Android 16-compatible edge-to-edge behavior and 16 KB native-library packaging validation
+
 # v1.2.1
 * Fix external controller source detection
 * Switch to onscreen touchpad joystick if external is selected but becomes disconnected

@@ -1,6 +1,7 @@
 package com.mantismoonlabs.fujinetgo800
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -352,6 +353,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ComponentActivity's override is library-restricted for lint, but overriding the public
+    // framework callback is required to route physical keyboards and game controllers first.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val repository = sessionRepository
         val state = repository?.state?.value

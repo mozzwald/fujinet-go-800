@@ -1,5 +1,6 @@
 package com.mantismoonlabs.fujinetgo800.session
 
+import androidx.lifecycle.viewModelScope
 import com.mantismoonlabs.fujinetgo800.settings.AtariMachineType
 import com.mantismoonlabs.fujinetgo800.settings.ArtifactingMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
@@ -19,31 +20,53 @@ import com.mantismoonlabs.fujinetgo800.storage.SystemRomSelection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import kotlin.coroutines.CoroutineContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LaunchSettingsViewModelTest {
+    private val repositoryScopes = mutableListOf<CoroutineScope>()
+    private val viewModelJobs = mutableListOf<Job>()
+
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
+    @After
+    fun cancelRepositoryScopes() {
+        // viewModelScope runs on the test Main dispatcher. Cancel it here and let
+        // MainDispatcherRule drain its queued completion before resetMain(). Joining it from
+        // runBlocking would deadlock because that dispatcher has not been advanced yet.
+        viewModelJobs.forEach { it.cancel() }
+        runBlocking {
+            repositoryScopes.forEach { scope ->
+                scope.coroutineContext[Job]?.cancelAndJoin()
+            }
+        }
+        viewModelJobs.clear()
+        repositoryScopes.clear()
+    }
+
     @Test
     fun betaBuildAlwaysShowsFujiNetLaunchLabel() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "labels.preferences_pb",
         )
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
         )
@@ -60,11 +83,11 @@ class LaunchSettingsViewModelTest {
     @Test
     fun selectingLocalOnlyKeepsFujiNetLaunchModeWithoutStarting() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "local-only.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository()
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -80,11 +103,11 @@ class LaunchSettingsViewModelTest {
     @Test
     fun startRequestedDispatchesLatestPersistedLaunchConfig() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "start-request.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository()
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -120,7 +143,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun turboModeChangeDispatchesRuntimeSettingsWhenSessionIsRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "running-turbo.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -133,7 +156,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -155,7 +178,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun videoStandardChangeDispatchesRuntimeSettingsWhenSessionIsRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "running-video.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -168,7 +191,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -190,7 +213,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun artifactingChangeDispatchesRuntimeSettingsWhenSessionIsRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "running-artifact.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -203,7 +226,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -225,7 +248,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun ntscFilterPresetChangeDispatchesRuntimeSettingsWhenSessionIsRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "running-ntsc-preset.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -238,7 +261,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -270,7 +293,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun ntscFilterSliderChangeMarksPresetCustomAndDispatchesRuntimeSettings() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "running-ntsc-custom.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -283,7 +306,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -315,7 +338,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun closingSettingsDoesNotRestartWhenLaunchModeSelectionStaysFujiNet() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "close-settings.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -328,7 +351,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -346,7 +369,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun closingSettingsRestartsRunningEmulatorWhenMachineConfigChanges() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "machine-restart.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -359,7 +382,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -393,7 +416,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun importingSystemRomPersistsPathAndDispatchesRuntimeSettingsWhenRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "system-rom.preferences_pb",
         )
         val runtimePaths = RuntimePaths(temporaryFolder.newFolder("system-rom-runtime"))
@@ -408,7 +431,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
             runtimePaths = runtimePaths,
@@ -446,7 +469,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun emulatorVolumeChangeDispatchesRuntimeUpdateWhileRunning() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "volume-running.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -459,7 +482,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -479,10 +502,10 @@ class LaunchSettingsViewModelTest {
     @Test
     fun emulatorVolumeChangeFinishedPersistsSelection() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "volume-persist.preferences_pb",
         )
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
         )
@@ -498,10 +521,10 @@ class LaunchSettingsViewModelTest {
     @Test
     fun resetToDefaultsRestoresDefaultSettings() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "reset-defaults.preferences_pb",
         )
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
         )
@@ -523,7 +546,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun refreshFujiNetLogReadsNewestBlockFromLargeLogFile() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "large-fujinet-log.preferences_pb",
         )
         val runtimePaths = RuntimePaths(temporaryFolder.newFolder("large-fujinet-log-root"))
@@ -534,7 +557,7 @@ class LaunchSettingsViewModelTest {
                 "\nrecent-one\nrecent-two\n",
         )
 
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
             runtimePaths = runtimePaths,
@@ -548,10 +571,10 @@ class LaunchSettingsViewModelTest {
     @Test
     fun selectingExpandedMachineTypeCoercesInvalidMemoryProfile() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "machine-memory-coercion.preferences_pb",
         )
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
         )
@@ -570,14 +593,14 @@ class LaunchSettingsViewModelTest {
     @Test
     fun invalidPersistedMemoryProfileIsNormalizedOnLoad() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "machine-memory-800xl.preferences_pb",
         )
 
         settingsRepository.updateMachineType(AtariMachineType.ATARI_800XL)
         settingsRepository.updateMemoryProfile(MemoryProfile.RAM_576)
 
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = RecordingSessionRepository(),
         )
@@ -592,7 +615,7 @@ class LaunchSettingsViewModelTest {
     @Test
     fun closingSettingsRestartsWhenPatchModeChanges() = runTest {
         val settingsRepository = createSettingsRepository(
-            scope = CoroutineScope(coroutineContext + Job()),
+            scope = trackedRepositoryScope(coroutineContext),
             fileName = "patch-mode-restart.preferences_pb",
         )
         val sessionRepository = RecordingSessionRepository().apply {
@@ -605,7 +628,7 @@ class LaunchSettingsViewModelTest {
                 ),
             )
         }
-        val viewModel = LaunchSettingsViewModel(
+        val viewModel = trackedLaunchSettingsViewModel(
             settingsRepository = settingsRepository,
             sessionRepository = sessionRepository,
         )
@@ -643,6 +666,33 @@ class LaunchSettingsViewModelTest {
             produceFile = { temporaryFolder.newFile(fileName) },
             scope = scope,
         )
+    }
+
+    private fun trackedRepositoryScope(context: CoroutineContext): CoroutineScope =
+        CoroutineScope(context + Job()).also(repositoryScopes::add)
+
+    private fun trackedLaunchSettingsViewModel(
+        settingsRepository: EmulatorSettingsRepository,
+        sessionRepository: SessionRepository,
+        runtimePaths: RuntimePaths? = null,
+        systemRomDocumentStore: SystemRomDocumentStore? = null,
+    ): LaunchSettingsViewModel {
+        val viewModel = if (runtimePaths == null) {
+            LaunchSettingsViewModel(
+                settingsRepository = settingsRepository,
+                sessionRepository = sessionRepository,
+            )
+        } else {
+            LaunchSettingsViewModel(
+                settingsRepository = settingsRepository,
+                sessionRepository = sessionRepository,
+                runtimePaths = runtimePaths,
+                systemRomDocumentStore = systemRomDocumentStore,
+            )
+        }
+        viewModelJobs += viewModel.viewModelScope.coroutineContext[Job]
+            ?: error("LaunchSettingsViewModel has no viewModelScope job")
+        return viewModel
     }
 }
 

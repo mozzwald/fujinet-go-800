@@ -6,6 +6,8 @@ plugins {
 
 import java.util.Properties
 
+val pinnedAndroidNdkVersion = "30.0.14904198"
+
 val keystoreProperties = Properties().apply {
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     if (keystorePropertiesFile.exists()) {
@@ -65,11 +67,20 @@ val prepareFujiNetRuntime by tasks.registering(Exec::class) {
     description = "Builds the pinned FujiNet Android runtime for all packaged ABIs."
     workingDir = rootProject.projectDir
     commandLine("bash", rootProject.file("tools/fujinet/build-fujinet.sh").absolutePath, "--all-abis")
+    inputs.property("androidNdkVersion", pinnedAndroidNdkVersion)
     inputs.file(rootProject.file("tools/fujinet/build-fujinet.sh"))
     inputs.dir(rootProject.file("tools/fujinet/patches"))
     inputs.dir(rootProject.file("tools/fujinet/support"))
     outputs.dir(project.file("src/main/assets-generated/fujinet"))
     outputs.dir(project.file("src/main/jniLibs-generated"))
+    doFirst {
+        val pinnedNdkDirectory = android.sdkDirectory.resolve("ndk/$pinnedAndroidNdkVersion")
+        check(pinnedNdkDirectory.resolve("build/cmake/android.toolchain.cmake").isFile) {
+            "Pinned Android NDK $pinnedAndroidNdkVersion is not installed at $pinnedNdkDirectory"
+        }
+        environment("ANDROID_NDK_HOME", pinnedNdkDirectory.absolutePath)
+        environment("ANDROID_NDK_ROOT", pinnedNdkDirectory.absolutePath)
+    }
 }
 
 tasks.configureEach {
@@ -101,7 +112,7 @@ tasks.matching { task ->
 android {
     namespace = "com.mantismoonlabs.fujinetgo800"
     compileSdk = 36
-    ndkVersion = "30.0.14904198"
+    ndkVersion = pinnedAndroidNdkVersion
     flavorDimensions += "branding"
 
     signingConfigs {
@@ -117,9 +128,9 @@ android {
 
     defaultConfig {
         minSdk = 26
-        targetSdk = 35
-        versionCode = 17
-        versionName = "1.2.1"
+        targetSdk = 36
+        versionCode = 18
+        versionName = "1.3.0"
         buildConfigField("String", "ATARI800_VERSION", "\"${atari800Version}\"")
         buildConfigField("String", "FUJINET_RUNTIME_VERSION", "\"${fujiNetRuntimeVersion}\"")
 
@@ -203,6 +214,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.window)
     implementation(libs.androidx.datastore.preferences)
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation(platform(libs.androidx.compose.bom))
@@ -217,6 +229,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.window.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)

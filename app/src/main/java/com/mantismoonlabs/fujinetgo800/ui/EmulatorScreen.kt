@@ -1,10 +1,10 @@
 package com.mantismoonlabs.fujinetgo800.ui
 
 import android.content.ClipboardManager
-import android.content.res.Configuration
 import android.os.Build
 import android.view.InputDevice
 import android.view.MotionEvent
+import androidx.activity.compose.BackHandler
 import androidx.core.content.pm.PackageInfoCompat
 import com.mantismoonlabs.fujinetgo800.BuildConfig
 import com.mantismoonlabs.fujinetgo800.R
@@ -73,18 +73,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +90,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -101,8 +97,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.mantismoonlabs.fujinetgo800.input.AtariConsoleKey
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyCode
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyMapping
@@ -129,9 +123,9 @@ import com.mantismoonlabs.fujinetgo800.settings.VideoStandard
 import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerIdFor
 import com.mantismoonlabs.fujinetgo800.settings.hardwareControllerNameFor
 import com.mantismoonlabs.fujinetgo800.settings.inputDeviceFor
-import com.mantismoonlabs.fujinetgo800.settings.destinationRectFor
 import com.mantismoonlabs.fujinetgo800.settings.koalaPadPort
 import com.mantismoonlabs.fujinetgo800.settings.mousePort
+import com.mantismoonlabs.fujinetgo800.settings.normalizedDestinationPositionFor
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
 import com.mantismoonlabs.fujinetgo800.settings.paddlePort
 import com.mantismoonlabs.fujinetgo800.settings.validMemoryProfiles
@@ -209,46 +203,25 @@ fun EmulatorScreen(
     val launchSettingsState by launchSettingsViewModel.uiState.collectAsStateWithLifecycle()
     val inputControlsState by inputControlsViewModel.uiState.collectAsStateWithLifecycle()
     val localMediaState by localMediaViewModel.uiState.collectAsStateWithLifecycle()
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val view = LocalView.current
-    val isSamsungDevice = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
-    val bottomNavigationInset = with(density) {
-        (
-            ViewCompat.getRootWindowInsets(view)
-                ?.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
-                ?.bottom ?: 0
-            ).toDp()
-    }
-    val visibleNavigationBarInset = with(density) {
-        (
-            ViewCompat.getRootWindowInsets(view)
-                ?.getInsets(WindowInsetsCompat.Type.navigationBars())
-                ?.bottom ?: 0
-            ).toDp()
-    }
-    val screenHeight = configuration.screenHeightDp.dp + bottomNavigationInset
-    val screenWidth = configuration.screenWidthDp.dp
+    val windowSize = LocalWindowInfo.current.containerSize
+    val fold = rememberEmulatorFold()
+    val windowLayout = calculateEmulatorWindowLayout(
+        metrics = EmulatorWindowMetrics(
+            widthPx = windowSize.width,
+            heightPx = windowSize.height,
+            // The emulator is immersive, so hidden system-bar regions remain usable. Physical
+            // folding features are handled separately below and can still constrain content to
+            // an uninterrupted pane.
+            fold = fold,
+        ),
+        expandedWidthThresholdPx = with(density) { 600.dp.roundToPx() },
+    )
+    val screenHeight = with(density) { windowLayout.contentBounds.height.toDp() }
+    val screenWidth = with(density) { windowLayout.contentBounds.width.toDp() }
     val contentWidth = (screenWidth - 16.dp).coerceAtLeast(0.dp)
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val compactPortraitControls = !isLandscape && configuration.screenHeightDp <= 760
-    var measuredKeyboardBottomGap by remember { mutableStateOf(0.dp) }
-    var measuredJoystickBottomGap by remember { mutableStateOf(0.dp) }
-    val samsungPortraitKeyboardBottomPadding = rememberCompensatedSamsungBottomPadding(
-        enabled = !isLandscape && isSamsungDevice,
-        visibleNavigationBarInset = visibleNavigationBarInset,
-        measuredBottomGap = measuredKeyboardBottomGap,
-    )
-    val samsungPortraitJoystickBottomPadding = rememberCompensatedSamsungBottomPadding(
-        enabled = !isLandscape && isSamsungDevice,
-        visibleNavigationBarInset = visibleNavigationBarInset,
-        measuredBottomGap = measuredJoystickBottomGap,
-    )
-    val samsungSettingsBottomPadding = if (!isLandscape && isSamsungDevice) {
-        visibleNavigationBarInset
-    } else {
-        0.dp
-    }
+    val isLandscape = windowLayout.isLandscape
+    val compactPortraitControls = !isLandscape && screenHeight <= 760.dp
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val inputPanelVisible = if (isLandscape) true else inputControlsState.isInputPanelVisible
     val landscapeControlsFullscreenHidden = sessionState is SessionState.Running &&
@@ -476,6 +449,10 @@ fun EmulatorScreen(
         }
     }
 
+    BackHandler(enabled = uiState.settingsVisible) {
+        shellViewModel.onSettingsDismissed()
+    }
+
     LaunchedEffect(
         inputControlsState.portraitInputPanelSizeFraction,
         inputControlsState.isInputPanelVisible,
@@ -492,12 +469,21 @@ fun EmulatorScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        x = windowLayout.contentBounds.left,
+                        y = windowLayout.contentBounds.top,
+                    )
+                }
+                .width(screenWidth)
+                .height(screenHeight)
+                .testTag("emulator-safe-content")
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         if (resetDialogVisible) {
             ResetChooserDialog(
                 onDismiss = { resetDialogVisible = false },
@@ -609,7 +595,6 @@ fun EmulatorScreen(
                 },
                 onClearLocalMedia = onClearMediaSelection,
                 onCloseSettings = onCloseSettings,
-                footerBottomPadding = samsungSettingsBottomPadding,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -1047,14 +1032,7 @@ fun EmulatorScreen(
                                                         ),
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .height(panelHeight)
-                                                        .padding(bottom = samsungPortraitKeyboardBottomPadding)
-                                                        .measureBottomGapInWindow(
-                                                            rootViewHeightPx = view.height,
-                                                            density = density,
-                                                            appliedBottomPadding = samsungPortraitKeyboardBottomPadding,
-                                                            onGapMeasured = { measuredKeyboardBottomGap = it },
-                                                        ),
+                                                        .height(panelHeight),
                                                 )
                                             }
                                         }
@@ -1156,13 +1134,6 @@ fun EmulatorScreen(
                                             val inputPanelModifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(panelHeight)
-                                                    .padding(bottom = samsungPortraitJoystickBottomPadding)
-                                                    .measureBottomGapInWindow(
-                                                        rootViewHeightPx = view.height,
-                                                        density = density,
-                                                        appliedBottomPadding = samsungPortraitJoystickBottomPadding,
-                                                        onGapMeasured = { measuredJoystickBottomGap = it },
-                                                    )
                                             val footerContent: @Composable () -> Unit = {
                                                 JoystickFooterControls(
                                                     settings = launchSettingsState.settings,
@@ -1234,6 +1205,7 @@ fun EmulatorScreen(
 
                 Spacer(modifier = Modifier.height(BottomChromeSpacing))
             }
+        }
         }
     }
 }
@@ -1512,17 +1484,18 @@ private fun Modifier.koalaPadInput(
         var activePointerId by remember { mutableStateOf<Int?>(null) }
 
         fun dispatchKoalaPosition(x: Float, y: Float) {
-            val destinationRect = destinationRectFor(
+            val normalizedPosition = normalizedDestinationPositionFor(
                 scaleMode = scaleMode,
                 canvasWidth = hostSize.width,
                 canvasHeight = hostSize.height,
                 frameWidth = EmulatorFrameWidth,
                 frameHeight = EmulatorFrameHeight,
-            )
-            val normalizedX = ((x - destinationRect.left) / destinationRect.width().coerceAtLeast(1)).coerceIn(0f, 1f)
-            val normalizedY = ((y - destinationRect.top) / destinationRect.height().coerceAtLeast(1)).coerceIn(0f, 1f)
-            val xPot = (normalizedX * 228f).roundToInt().coerceIn(0, 228)
-            val yPot = (normalizedY * 228f).roundToInt().coerceIn(0, 228)
+                x = x,
+                y = y,
+                clampToBounds = true,
+            ) ?: return
+            val xPot = (normalizedPosition.x * 228f).roundToInt().coerceIn(0, 228)
+            val yPot = (normalizedPosition.y * 228f).roundToInt().coerceIn(0, 228)
             sessionRepository.setKoalaPadPosition(activePort, xPot, yPot)
         }
 
@@ -1535,23 +1508,23 @@ private fun Modifier.koalaPadInput(
                     MotionEvent.ACTION_DOWN -> {
                         val x = event.getX(event.actionIndex)
                         val y = event.getY(event.actionIndex)
-                        val destinationRect = destinationRectFor(
+                        val normalizedPosition = normalizedDestinationPositionFor(
                             scaleMode = scaleMode,
                             canvasWidth = hostSize.width,
                             canvasHeight = hostSize.height,
                             frameWidth = EmulatorFrameWidth,
                             frameHeight = EmulatorFrameHeight,
+                            x = x,
+                            y = y,
+                            clampToBounds = false,
                         )
-                        if (
-                            x < destinationRect.left ||
-                            x > destinationRect.right ||
-                            y < destinationRect.top ||
-                            y > destinationRect.bottom
-                        ) {
+                        if (normalizedPosition == null) {
                             false
                         } else {
                             activePointerId = event.getPointerId(event.actionIndex)
-                            dispatchKoalaPosition(x, y)
+                            val xPot = (normalizedPosition.x * 228f).roundToInt().coerceIn(0, 228)
+                            val yPot = (normalizedPosition.y * 228f).roundToInt().coerceIn(0, 228)
+                            sessionRepository.setKoalaPadPosition(activePort, xPot, yPot)
                             true
                         }
                     }
@@ -1663,35 +1636,6 @@ private fun PortraitResizableInputPanel(
                 content(contentHeight)
             }
         }
-    }
-}
-
-@Composable
-private fun rememberCompensatedSamsungBottomPadding(
-    enabled: Boolean,
-    visibleNavigationBarInset: Dp,
-    measuredBottomGap: Dp,
-): Dp {
-    if (!enabled || visibleNavigationBarInset <= 0.dp) {
-        return 0.dp
-    }
-    return (visibleNavigationBarInset - measuredBottomGap).coerceAtLeast(0.dp)
-}
-
-private fun Modifier.measureBottomGapInWindow(
-    rootViewHeightPx: Int,
-    density: Density,
-    appliedBottomPadding: Dp,
-    onGapMeasured: (Dp) -> Unit,
-): Modifier {
-    if (rootViewHeightPx <= 0) {
-        return this
-    }
-    return onGloballyPositioned { coordinates ->
-        val bounds = coordinates.boundsInWindow()
-        val measuredGapPx = (rootViewHeightPx.toFloat() - bounds.bottom).coerceAtLeast(0f)
-        val rawGapPx = with(density) { (measuredGapPx.toDp() - appliedBottomPadding).coerceAtLeast(0.dp).toPx() }
-        onGapMeasured(with(density) { rawGapPx.toDp() })
     }
 }
 
@@ -2794,7 +2738,6 @@ private fun FullScreenSettings(
     onPickLocalMedia: (MediaRole) -> Unit,
     onClearLocalMedia: (MediaRole) -> Unit,
     onCloseSettings: () -> Unit,
-    footerBottomPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     var aboutVisible by rememberSaveable { mutableStateOf(false) }
@@ -2930,9 +2873,7 @@ private fun FullScreenSettings(
 
             Button(
                 onClick = onCloseSettings,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = footerBottomPadding),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (launchSettingsState.restartRequiredVisible) "Close & Restart" else "Close Settings")
             }
