@@ -1,3 +1,8 @@
+# v1.2.1
+* Fix external controller source detection
+* Switch to onscreen touchpad joystick if external is selected but becomes disconnected
+* Add more external controller button mapping to Atari keys
+
 # 1.2.0
 
 * Add support for Paste Text from Android

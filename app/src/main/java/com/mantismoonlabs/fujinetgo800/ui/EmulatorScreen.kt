@@ -106,6 +106,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.mantismoonlabs.fujinetgo800.input.AtariConsoleKey
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyCode
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyMapping
+import com.mantismoonlabs.fujinetgo800.input.isExternalGameController
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetBootMode
 import com.mantismoonlabs.fujinetgo800.settings.ControlMode
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
@@ -2567,10 +2568,7 @@ private fun connectedHardwareControllerOptions(): List<HardwareControllerOption>
     return InputDevice.getDeviceIds()
         .toList()
         .mapNotNull(InputDevice::getDevice)
-        .filter { device ->
-            device.sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
-                device.sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD
-        }
+        .filter(InputDevice::isExternalGameController)
         .map { device ->
             HardwareControllerOption(
                 id = device.descriptor.takeIf { it.isNotBlank() } ?: "device:${device.id}",

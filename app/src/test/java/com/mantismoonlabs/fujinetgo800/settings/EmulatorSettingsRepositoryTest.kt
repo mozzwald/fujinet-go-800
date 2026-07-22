@@ -199,6 +199,66 @@ class EmulatorSettingsRepositoryTest {
     }
 
     @Test
+    fun disconnectedBluetoothControllerFallsBackToTouchscreenJoystickOnItsPort() = runTest {
+        val repository = EmulatorSettingsRepository.createForTest(
+            produceFile = { temporaryFolder.newFile("bluetooth-fallback.preferences_pb") },
+            scope = CoroutineScope(coroutineContext + Job()),
+        )
+        repository.updatePortHardwareController(
+            port = JoystickPort.PORT_2,
+            device = PortInputDevice.BLUETOOTH_JOYSTICK,
+            controllerId = "bluetooth-pad",
+            controllerName = "Wireless Gamepad",
+        )
+
+        val fallbackPorts = repository.reconcileBluetoothControllerAvailability(emptySet())
+
+        assertEquals(setOf(JoystickPort.PORT_2), fallbackPorts)
+        assertEquals(
+            EmulatorSettings(
+                port1InputDevice = PortInputDevice.NONE,
+                port2InputDevice = PortInputDevice.TOUCHSCREEN_JOYSTICK,
+            ),
+            repository.settings.first(),
+        )
+    }
+
+    @Test
+    fun connectedBluetoothAndDisconnectedUsbAssignmentsArePreserved() = runTest {
+        val repository = EmulatorSettingsRepository.createForTest(
+            produceFile = { temporaryFolder.newFile("connected-controller.preferences_pb") },
+            scope = CoroutineScope(coroutineContext + Job()),
+        )
+        repository.updatePortHardwareController(
+            port = JoystickPort.PORT_1,
+            device = PortInputDevice.BLUETOOTH_JOYSTICK,
+            controllerId = "bluetooth-pad",
+            controllerName = "Wireless Gamepad",
+        )
+        repository.updatePortHardwareController(
+            port = JoystickPort.PORT_2,
+            device = PortInputDevice.USB_JOYSTICK,
+            controllerId = "usb-pad",
+            controllerName = "USB Gamepad",
+        )
+
+        val fallbackPorts = repository.reconcileBluetoothControllerAvailability(setOf("bluetooth-pad"))
+
+        assertEquals(emptySet<JoystickPort>(), fallbackPorts)
+        assertEquals(
+            EmulatorSettings(
+                port1InputDevice = PortInputDevice.BLUETOOTH_JOYSTICK,
+                port2InputDevice = PortInputDevice.USB_JOYSTICK,
+                port1HardwareControllerId = "bluetooth-pad",
+                port2HardwareControllerId = "usb-pad",
+                port1HardwareControllerName = "Wireless Gamepad",
+                port2HardwareControllerName = "USB Gamepad",
+            ),
+            repository.settings.first(),
+        )
+    }
+
+    @Test
     fun koalaPadInputDeviceSelectionNormalizesConflictingDevices() = runTest {
         val repository = EmulatorSettingsRepository.createForTest(
             produceFile = { temporaryFolder.newFile("koala-port-input.preferences_pb") },

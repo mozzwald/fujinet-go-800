@@ -68,6 +68,47 @@ class HardwareKeyboardRouterTest {
     }
 
     @Test
+    fun ignoresControllerButtonsEvenWhenAndroidMarksThemAsKeyboardEvents() {
+        val keyCalls = mutableListOf<Pair<Int, Boolean>>()
+
+        val handled = router.route(
+            event = HardwareKeyEvent(
+                keyCode = KeyEvent.KEYCODE_SPACE,
+                action = KeyEvent.ACTION_DOWN,
+                source = InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_GAMEPAD,
+                deviceId = 7,
+            ),
+            sessionState = runningSession(),
+            onKeyState = { aKeyCode, pressed -> keyCalls += aKeyCode to pressed },
+            onConsoleKeys = { _, _, _ -> },
+        )
+
+        assertFalse(handled)
+        assertTrue(keyCalls.isEmpty())
+    }
+
+    @Test
+    fun alphabeticExternalKeyboardRoutesKeysEvenWhenItAlsoAdvertisesDpadInput() {
+        val keyCalls = mutableListOf<Pair<Int, Boolean>>()
+
+        val handled = router.route(
+            event = HardwareKeyEvent(
+                keyCode = KeyEvent.KEYCODE_DPAD_LEFT,
+                action = KeyEvent.ACTION_DOWN,
+                source = InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_DPAD,
+                deviceId = 8,
+                isAlphabeticKeyboard = true,
+            ),
+            sessionState = runningSession(),
+            onKeyState = { aKeyCode, pressed -> keyCalls += aKeyCode to pressed },
+            onConsoleKeys = { _, _, _ -> },
+        )
+
+        assertTrue(handled)
+        assertEquals(listOf(AtariKeyCode.AKEY_LEFT to true), keyCalls)
+    }
+
+    @Test
     fun ignoresKeysWhenSessionNotRunning() {
         val keyCalls = mutableListOf<Pair<Int, Boolean>>()
 

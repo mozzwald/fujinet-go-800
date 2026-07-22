@@ -343,6 +343,32 @@ fun EmulatorSettings.withHardwareControllerFor(
         .normalizedInputPorts()
 }
 
+fun EmulatorSettings.withUnavailableBluetoothControllersFallback(
+    connectedControllerIds: Set<String>,
+): EmulatorSettings {
+    val unavailablePorts = JoystickPort.entries.filter { port ->
+        inputDeviceFor(port) == PortInputDevice.BLUETOOTH_JOYSTICK &&
+            hardwareControllerIdFor(port) !in connectedControllerIds
+    }
+    if (unavailablePorts.isEmpty()) {
+        return this
+    }
+
+    var updated = this
+    unavailablePorts.forEach { port ->
+        updated = updated
+            .setInputDeviceForPort(port, PortInputDevice.NONE)
+            .setHardwareControllerForPort(port, null, null)
+    }
+
+    // Android exposes one touchscreen controller, so if more than one stale
+    // Bluetooth assignment exists the first port becomes its fallback.
+    return updated.withInputDeviceFor(
+        port = unavailablePorts.first(),
+        device = PortInputDevice.TOUCHSCREEN_JOYSTICK,
+    )
+}
+
 fun EmulatorSettings.normalizedInputPorts(): EmulatorSettings {
     var normalized = this.copy(
         mouseSpeed = mouseSpeed.coerceIn(1, 9),

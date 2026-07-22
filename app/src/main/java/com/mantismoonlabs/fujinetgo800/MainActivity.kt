@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -50,6 +51,7 @@ import com.mantismoonlabs.fujinetgo800.notifications.determineNotificationStartu
 import com.mantismoonlabs.fujinetgo800.input.GameControllerMapper
 import com.mantismoonlabs.fujinetgo800.input.HardwareKeyboardRouter
 import com.mantismoonlabs.fujinetgo800.input.AndroidAtariKeyMapper
+import com.mantismoonlabs.fujinetgo800.input.isExternalGameController
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetSettingsBridge
 import com.mantismoonlabs.fujinetgo800.fujinet.FujiNetWebViewActivity
 import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettings
@@ -95,6 +97,18 @@ class MainActivity : ComponentActivity() {
     private lateinit var emulatorSettingsRepository: EmulatorSettingsRepository
     private val hardwareKeyboardRouter = HardwareKeyboardRouter(AndroidAtariKeyMapper())
     private val gameControllerMapper = GameControllerMapper()
+    private val inputManager by lazy { getSystemService(InputManager::class.java) }
+    private val inputDeviceListener = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = Unit
+
+        override fun onInputDeviceRemoved(deviceId: Int) {
+            reconcileBluetoothControllerAvailability()
+        }
+
+        override fun onInputDeviceChanged(deviceId: Int) {
+            reconcileBluetoothControllerAvailability()
+        }
+    }
     private val runtimePaths by lazy {
         RuntimePaths.fromContext(this)
     }
@@ -248,6 +262,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        inputManager.registerInputDeviceListener(inputDeviceListener, null)
+        reconcileBluetoothControllerAvailability()
         if (shutdownRequestedFromNotification) {
             ensureServiceStartedAndBound()
         } else if (notificationGateState == NotificationStartupGateState.Ready) {
@@ -271,6 +287,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        inputManager.unregisterInputDeviceListener(inputDeviceListener)
         if (!shutdownInProgress) {
             sessionRepository?.dispatch(SessionCommand.HostStopped)
         }
@@ -280,6 +297,27 @@ class MainActivity : ComponentActivity() {
             emulationService = null
         }
         super.onStop()
+    }
+
+    private fun reconcileBluetoothControllerAvailability() {
+        val connectedControllerIds = InputDevice.getDeviceIds()
+            .asSequence()
+            .mapNotNull(InputDevice::getDevice)
+            .filter(InputDevice::isExternalGameController)
+            .map { device ->
+                device.descriptor.takeIf(String::isNotBlank) ?: "device:${device.id}"
+            }
+            .toSet()
+        lifecycleScope.launch {
+            val fallbackPorts = emulatorSettingsRepository
+                .reconcileBluetoothControllerAvailability(connectedControllerIds)
+            if (fallbackPorts.isNotEmpty()) {
+                gameControllerMapper.resetJoystickState()
+                fallbackPorts.forEach { port ->
+                    sessionRepository?.setJoystickState(port.index, 0f, 0f, false)
+                }
+            }
+        }
     }
 
     private fun shutdownEmulatorAndExit() {

@@ -292,6 +292,25 @@ class EmulatorSettingsRepository private constructor(
         }
     }
 
+    suspend fun reconcileBluetoothControllerAvailability(
+        connectedControllerIds: Set<String>,
+    ): Set<JoystickPort> {
+        var fallbackPorts = emptySet<JoystickPort>()
+        dataStore.edit { preferences ->
+            val current = preferences.toEmulatorSettings()
+            val reconciled = current.withUnavailableBluetoothControllersFallback(connectedControllerIds)
+            if (reconciled != current) {
+                fallbackPorts = JoystickPort.entries
+                    .filterTo(linkedSetOf()) { port ->
+                        current.inputDeviceFor(port) == PortInputDevice.BLUETOOTH_JOYSTICK &&
+                            reconciled.inputDeviceFor(port) != PortInputDevice.BLUETOOTH_JOYSTICK
+                    }
+                preferences.writeInputPortSettings(reconciled)
+            }
+        }
+        return fallbackPorts
+    }
+
     suspend fun updateMouseSpeed(speed: Int) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.mouseSpeed] = speed.coerceIn(1, 9)

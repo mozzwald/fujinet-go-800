@@ -18,6 +18,7 @@ class HardwareKeyboardRouter(
                 action = event.action,
                 source = event.source,
                 deviceId = event.deviceId,
+                isAlphabeticKeyboard = event.device?.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC,
                 shiftPressed = event.isShiftPressed,
                 ctrlPressed = event.isCtrlPressed,
             ),
@@ -73,7 +74,10 @@ class HardwareKeyboardRouter(
         if (deviceId == KeyCharacterMap.VIRTUAL_KEYBOARD) {
             return false
         }
-        return source and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD
+        if (source.isExternalControllerSource() && !isAlphabeticKeyboard) {
+            return false
+        }
+        return isAlphabeticKeyboard || source and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD
     }
 }
 
@@ -82,6 +86,7 @@ internal data class HardwareKeyEvent(
     val action: Int,
     val source: Int,
     val deviceId: Int,
+    val isAlphabeticKeyboard: Boolean = false,
     val shiftPressed: Boolean = false,
     val ctrlPressed: Boolean = false,
 )
