@@ -58,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -128,6 +129,7 @@ import com.mantismoonlabs.fujinetgo800.settings.mousePort
 import com.mantismoonlabs.fujinetgo800.settings.normalizedDestinationPositionFor
 import com.mantismoonlabs.fujinetgo800.settings.normalizedMachineMemory
 import com.mantismoonlabs.fujinetgo800.settings.paddlePort
+import com.mantismoonlabs.fujinetgo800.settings.touchscreenJoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.validMemoryProfiles
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsViewModel
 import com.mantismoonlabs.fujinetgo800.session.LaunchSettingsUiState
@@ -221,66 +223,97 @@ fun EmulatorScreen(
     val screenWidth = with(density) { windowLayout.contentBounds.width.toDp() }
     val contentWidth = (screenWidth - 16.dp).coerceAtLeast(0.dp)
     val isLandscape = windowLayout.isLandscape
-    val compactPortraitControls = !isLandscape && screenHeight <= 760.dp
+    val useInternalKeyboard = launchSettingsState.settings.keyboardInputMode == KeyboardInputMode.INTERNAL
+    val wideKeyboardPanelHeight = maxOf(
+        (screenHeight * 0.58f - 24.dp).coerceIn(180.dp, 240.dp),
+        internalKeyboardContainerHeight(
+            compact = true,
+            dense = true,
+        ),
+    )
+    val runtimeLayout = calculateEmulatorRuntimeLayout(
+        EmulatorRuntimeLayoutMetrics(
+            widthDp = screenWidth.value,
+            heightDp = screenHeight.value,
+            keyboardPanelHeightDp = wideKeyboardPanelHeight.value,
+            keyboardSelected = inputControlsState.isKeyboardVisible,
+        ),
+    )
+    val useWideRuntimeLayout = runtimeLayout.isWide
+    val compactPortraitControls = !useWideRuntimeLayout && screenHeight <= 760.dp
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
-    val inputPanelVisible = if (isLandscape) true else inputControlsState.isInputPanelVisible
-    val landscapeControlsFullscreenHidden = sessionState is SessionState.Running &&
-        isLandscape &&
+    val inputPanelVisible = if (useWideRuntimeLayout) true else inputControlsState.isInputPanelVisible
+    val wideControlsFullscreenHidden = sessionState is SessionState.Running &&
+        useWideRuntimeLayout &&
         inputControlsState.isLandscapeControlsFullscreenHidden
     val baseInputPanelHeight = if (compactPortraitControls) {
         (screenHeight * 0.43f).coerceIn(280.dp, 340.dp)
-    } else if (isLandscape) {
-        (screenHeight * 0.58f - 24.dp).coerceIn(180.dp, 240.dp)
     } else {
         (screenHeight * 0.43f).coerceIn(300.dp, 390.dp)
     }
-    val useLandscapeJoystickLayout = sessionState is SessionState.Running &&
-        isLandscape &&
-        !landscapeControlsFullscreenHidden &&
+    val useWideJoystickLayout = sessionState is SessionState.Running &&
+        useWideRuntimeLayout &&
+        !wideControlsFullscreenHidden &&
         inputPanelVisible &&
         inputControlsState.controlMode == ControlMode.JOYSTICK
-    val useInternalKeyboard = launchSettingsState.settings.keyboardInputMode == KeyboardInputMode.INTERNAL
-    val landscapeKeyboardLayout = sessionState is SessionState.Running &&
-        isLandscape &&
-        !landscapeControlsFullscreenHidden &&
+    val wideKeyboardLayout = sessionState is SessionState.Running &&
+        useWideRuntimeLayout &&
+        !wideControlsFullscreenHidden &&
         inputControlsState.isKeyboardVisible
-    val useLandscapeRuntimeChrome =
-        useLandscapeJoystickLayout || landscapeKeyboardLayout || landscapeControlsFullscreenHidden
+    val useCombinedWideKeyboardLayout =
+        wideKeyboardLayout && runtimeLayout.showsConcurrentTouchControls
+    val useWideRuntimeChrome =
+        useWideJoystickLayout || wideKeyboardLayout || wideControlsFullscreenHidden
     val shouldReclaimViewportSpace = sessionState is SessionState.Running &&
-        !isLandscape &&
+        !useWideRuntimeLayout &&
         !uiState.settingsVisible
     val compactPortraitKeyboardLayout = sessionState is SessionState.Running &&
-        !isLandscape &&
+        !useWideRuntimeLayout &&
         inputControlsState.isKeyboardVisible &&
         !useInternalKeyboard &&
         imeVisible &&
         !uiState.settingsVisible
     val emulatorViewportHeight = (contentWidth / EmulatorDisplayAspectRatio)
         .coerceAtMost(screenHeight)
-    val topControlsHeight = if (!useLandscapeRuntimeChrome) {
+    val topControlsHeight = if (!useWideRuntimeChrome) {
         CompactButtonHeight + StandardSectionSpacing
     } else {
         0.dp
     }
-    val portraitFunctionBarHeight = if (sessionState is SessionState.Running && !useLandscapeJoystickLayout && isLandscape) {
-        StandardSectionSpacing + portraitFunctionBarContainerHeight(compactPortraitControls || isLandscape) +
-            StandardSectionSpacing
-    } else {
-        0.dp
+    val portraitFunctionBarHeight = 0.dp
+    val portraitDrawerFunctionBarHeight = portraitFunctionBarContainerHeight(compactPortraitControls)
+    val portraitDrawerFunctionBarBlockHeight = portraitDrawerFunctionBarHeight + StandardSectionSpacing
+    val portraitUsefulContentHeight = when {
+        inputControlsState.isKeyboardVisible && useInternalKeyboard -> internalKeyboardContainerHeight(
+            compact = compactPortraitControls,
+            // Budget for the normal key size. Using the dense height here trapped the resize
+            // drawer below the threshold where AtariKeyboard could leave dense mode.
+            dense = false,
+        )
+        inputControlsState.isKeyboardVisible -> baseInputPanelHeight
+        else -> joystickContainerHeight(compactPortraitControls)
     }
+    val portraitUsefulPanelHeight =
+        PortraitInputResizeChromeHeight + portraitDrawerFunctionBarBlockHeight + portraitUsefulContentHeight
     val portraitMaxInputPanelHeight = if (
         sessionState is SessionState.Running &&
-        !isLandscape &&
+        !useWideRuntimeLayout &&
         !uiState.settingsVisible
     ) {
-        (
-            screenHeight -
-                ScreenVerticalPadding -
-                topControlsHeight -
-                portraitFunctionBarHeight -
-                PortraitControlsVerticalSpacing -
-                emulatorViewportHeight
-            ).coerceAtLeast(0.dp)
+        calculateEmulatorPortraitHeightBudget(
+            totalHeightDp = screenHeight.value,
+            fixedChromeHeightDp = (
+                ScreenVerticalPadding +
+                    topControlsHeight +
+                    portraitFunctionBarHeight +
+                    PortraitControlsVerticalSpacing
+                ).value,
+            desiredViewportHeightDp = emulatorViewportHeight.value,
+            usefulInputPanelHeightDp = portraitUsefulPanelHeight.value,
+            // Joystick, paddle, and Koala controls scale with their container. Keyboards have
+            // an intrinsic useful height and retain their content cap.
+            allowInputPanelExpansion = !inputControlsState.isKeyboardVisible,
+        ).maxInputPanelHeightDp.dp
     } else {
         0.dp
     }
@@ -296,7 +329,7 @@ fun EmulatorScreen(
     }
     val portraitInputPanelMetrics = if (
         sessionState is SessionState.Running &&
-        !isLandscape &&
+        !useWideRuntimeLayout &&
         !uiState.settingsVisible
     ) {
         calculatePortraitInputPanelMetrics(
@@ -306,17 +339,10 @@ fun EmulatorScreen(
     } else {
         null
     }
-    val landscapeKeyboardPanelHeight = maxOf(
-        baseInputPanelHeight,
-        internalKeyboardContainerHeight(
-            compact = true,
-            dense = true,
-        ),
-    )
     val reservedInputPanelHeight = if (
         sessionState is SessionState.Running &&
         inputPanelVisible &&
-        !useLandscapeRuntimeChrome
+        !useWideRuntimeChrome
     ) {
         portraitInputPanelMetrics?.totalHeight ?: baseInputPanelHeight
     } else {
@@ -339,7 +365,7 @@ fun EmulatorScreen(
     } else {
         R.drawable.ic_keyboard
     }
-    val toggleInputDescription = if (landscapeControlsFullscreenHidden) {
+    val toggleInputDescription = if (wideControlsFullscreenHidden) {
         "Show on-screen controls"
     } else if (inputControlsState.isKeyboardVisible) {
         "Switch to joystick input"
@@ -390,8 +416,6 @@ fun EmulatorScreen(
         inputControlsViewModel::enterLandscapeControlsFullscreenHidden
     val exitLandscapeControlsFullscreenHidden =
         inputControlsViewModel::exitLandscapeControlsFullscreenHidden
-    val portraitDrawerFunctionBarHeight = portraitFunctionBarContainerHeight(compactPortraitControls)
-    val portraitDrawerFunctionBarBlockHeight = portraitDrawerFunctionBarHeight + StandardSectionSpacing
     val beginPortraitResize = {
         portraitResizeGestureStartFraction =
             portraitResizeFractionOverride ?: inputControlsState.portraitInputPanelSizeFraction
@@ -456,7 +480,7 @@ fun EmulatorScreen(
     LaunchedEffect(
         inputControlsState.portraitInputPanelSizeFraction,
         inputControlsState.isInputPanelVisible,
-        isLandscape,
+        useWideRuntimeLayout,
     ) {
         val override = portraitResizeFractionOverride ?: return@LaunchedEffect
         val persistedFraction = if (inputControlsState.isInputPanelVisible) {
@@ -464,7 +488,7 @@ fun EmulatorScreen(
         } else {
             0f
         }
-        if (isLandscape || kotlin.math.abs(override - persistedFraction) < 0.001f) {
+        if (useWideRuntimeLayout || kotlin.math.abs(override - persistedFraction) < 0.001f) {
             portraitResizeFractionOverride = null
         }
     }
@@ -598,7 +622,7 @@ fun EmulatorScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            if (!useLandscapeRuntimeChrome) {
+            if (!useWideRuntimeChrome) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (isLandscape) {
                         Row(
@@ -736,7 +760,7 @@ fun EmulatorScreen(
                         .fillMaxWidth()
                 },
             ) {
-                if (useLandscapeJoystickLayout) {
+                if (useWideJoystickLayout) {
                     LandscapeJoystickSessionLayout(
                         sessionRepository = sessionRepository,
                         emulatorSettings = launchSettingsState.settings,
@@ -782,7 +806,125 @@ fun EmulatorScreen(
                             .weight(1f)
                             .fillMaxWidth(),
                     )
-                } else if (landscapeKeyboardLayout) {
+                } else if (useCombinedWideKeyboardLayout) {
+                    DisposableEffect(
+                        launchSettingsState.settings.touchscreenJoystickPort()?.index,
+                        launchSettingsState.settings.paddlePort()?.index,
+                        launchSettingsState.settings.koalaPadPort()?.index,
+                    ) {
+                        onDispose {
+                            inputControlsViewModel.releaseConcurrentTouchControls()
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("wide-combined-input-layout"),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        LandscapeJoystickSessionLayout(
+                            sessionRepository = sessionRepository,
+                            emulatorSettings = launchSettingsState.settings,
+                            scaleMode = launchSettingsState.settings.scaleMode,
+                            scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                            keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                            screenWidth = screenWidth,
+                            onSwapFujiNetDisks = onSwapFujiNetDisks,
+                            onToggleInputMode = toggleInputMode,
+                            toggleInputIconResId = toggleInputIconResId,
+                            toggleInputDescription = toggleInputDescription,
+                            onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
+                            pauseEnabled = uiState.isPauseEnabled,
+                            pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
+                                R.drawable.ic_play
+                            } else {
+                                R.drawable.ic_pause
+                            },
+                            pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
+                                "Resume emulation"
+                            } else {
+                                "Pause emulation"
+                            },
+                            onResetPressed = openResetDialog,
+                            onSettingsPressed = shellViewModel::onSettingsPressed,
+                            onPortStatusPressed = { portInputPickerPort = it },
+                            onJoystickMoved = inputControlsViewModel::onConcurrentJoystickMoved,
+                            onJoystickReleased = inputControlsViewModel::onConcurrentJoystickReleased,
+                            onFirePressed = inputControlsViewModel::onConcurrentFirePressed,
+                            onFireReleased = inputControlsViewModel::onConcurrentFireReleased,
+                            onKoalaRightTriggerPressed =
+                                inputControlsViewModel::onConcurrentKoalaRightTriggerPressed,
+                            onKoalaRightTriggerReleased =
+                                inputControlsViewModel::onConcurrentKoalaRightTriggerReleased,
+                            paddleActive = launchSettingsState.settings.paddlePort() != null,
+                            koalaActive = launchSettingsState.settings.koalaPadPort() != null,
+                            paddlePosition = paddlePosition,
+                            onPaddlePositionChanged = { position ->
+                                paddlePosition = position.coerceIn(0f, 1f)
+                                inputControlsViewModel.onConcurrentPaddlePositionChanged(paddlePosition)
+                            },
+                            onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                            onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
+                            onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
+                            joystickInputStyle = inputControlsState.joystickInputStyle,
+                            joystickHapticsEnabled = inputControlsState.joystickHapticsEnabled,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .testTag("wide-touch-controls"),
+                        )
+                        if (useInternalKeyboard) {
+                            AtariKeyboard(
+                                onKeyPressed = inputControlsViewModel::onKeyPressed,
+                                onKeyReleased = inputControlsViewModel::onKeyReleased,
+                                onToggleInputMode = toggleInputMode,
+                                onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                                resetTrigger = keyboardResetTrigger,
+                                hapticsEnabled = inputControlsState.keyboardHapticsEnabled,
+                                stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
+                                stickyCtrlEnabled = launchSettingsState.settings.stickyKeyboardCtrlEnabled,
+                                stickyFnEnabled = launchSettingsState.settings.stickyKeyboardFnEnabled,
+                                toggleIconResId = toggleInputIconResId,
+                                toggleIconDescription = toggleInputDescription,
+                                compact = true,
+                                dense = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(wideKeyboardPanelHeight)
+                                    .testTag("wide-keyboard"),
+                            )
+                        } else {
+                            AndroidKeyboardPanel(
+                                onToggleInputMode = toggleInputMode,
+                                onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                                toggleIconResId = toggleInputIconResId,
+                                toggleIconDescription = toggleInputDescription,
+                                onAtariPressed = {
+                                    inputControlsViewModel.onKeyPressed(
+                                        AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                                    )
+                                },
+                                onAtariReleased = {
+                                    inputControlsViewModel.onKeyReleased(
+                                        AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(wideKeyboardPanelHeight)
+                                    .testTag("wide-keyboard"),
+                                imeProxy = {
+                                    AndroidImeProxy(
+                                        active = true,
+                                        onTextChanged = inputControlsViewModel::onImeTextChanged,
+                                        onEnterPressed = inputControlsViewModel::onImeEnterPressed,
+                                    )
+                                },
+                            )
+                        }
+                    }
+                } else if (wideKeyboardLayout) {
                     LandscapeKeyboardSessionLayout(
                         sessionRepository = sessionRepository,
                         emulatorSettings = launchSettingsState.settings,
@@ -831,12 +973,12 @@ fun EmulatorScreen(
                         },
                         onImeTextChanged = inputControlsViewModel::onImeTextChanged,
                         onImeEnterPressed = inputControlsViewModel::onImeEnterPressed,
-                        keyboardPanelHeight = landscapeKeyboardPanelHeight,
+                        keyboardPanelHeight = wideKeyboardPanelHeight,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
                     )
-                } else if (landscapeControlsFullscreenHidden) {
+                } else if (wideControlsFullscreenHidden) {
                     LandscapeFullscreenSessionLayout(
                         sessionRepository = sessionRepository,
                         emulatorSettings = launchSettingsState.settings,
@@ -851,22 +993,24 @@ fun EmulatorScreen(
                             .fillMaxWidth(),
                     )
                 } else {
+                    val emulatorStageHeight = if (shouldReclaimViewportSpace) {
+                        minOf(emulatorViewportHeight, portraitAvailableEmulatorContainerHeight)
+                    } else {
+                        emulatorViewportHeight
+                    }
                     val emulatorStageModifier = if (compactPortraitKeyboardLayout || shouldReclaimViewportSpace) {
                         Modifier
                             .fillMaxWidth()
-                            .height(emulatorViewportHeight)
+                            .height(emulatorStageHeight)
                     } else {
                         Modifier
                             .weight(1f)
                             .fillMaxWidth()
                     }
-                    val emulatorContainerModifier = if (shouldReclaimViewportSpace && !compactPortraitKeyboardLayout) {
+                    val emulatorContainerModifier = if (shouldReclaimViewportSpace) {
                         Modifier
                             .fillMaxWidth()
-                            .height(
-                                portraitAvailableEmulatorContainerHeight
-                                    .coerceAtLeast(emulatorViewportHeight),
-                            )
+                            .height(portraitAvailableEmulatorContainerHeight)
                     } else {
                         Modifier
                     }
@@ -931,7 +1075,7 @@ fun EmulatorScreen(
             Column(
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (sessionState is SessionState.Running && !useLandscapeRuntimeChrome) {
+                if (sessionState is SessionState.Running && !useWideRuntimeChrome) {
                     Spacer(modifier = Modifier.height(StandardSectionSpacing))
                     if (inputControlsState.isKeyboardVisible) {
                         if (isLandscape) {
@@ -952,7 +1096,7 @@ fun EmulatorScreen(
                                     dense = true,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(landscapeKeyboardPanelHeight),
+                                        .height(wideKeyboardPanelHeight),
                                 )
                             } else {
                                 AndroidKeyboardPanel(
@@ -1025,7 +1169,7 @@ fun EmulatorScreen(
                                                     toggleIconResId = toggleInputIconResId,
                                                     toggleIconDescription = toggleInputDescription,
                                                     compact = compactPortraitControls,
-                                                    dense = landscapeKeyboardLayout ||
+                                                    dense = wideKeyboardLayout ||
                                                         shouldUsePortraitDenseKeyboard(
                                                             contentHeight = panelHeight,
                                                             compact = compactPortraitControls,
@@ -1805,7 +1949,8 @@ private fun LandscapeKeyboardSessionLayout(
             Box(
                 modifier = Modifier
                     .width(functionRailWidth)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .testTag("wide-left-rail"),
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -1852,12 +1997,14 @@ private fun LandscapeKeyboardSessionLayout(
                 keepScreenOn = keepScreenOn,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .testTag("wide-emulator"),
             )
             Box(
                 modifier = Modifier
                     .width(functionRailWidth)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .testTag("wide-right-rail"),
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -1985,7 +2132,8 @@ private fun LandscapeJoystickSessionLayout(
         Box(
             modifier = Modifier
                 .width(padWidth)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .testTag("wide-left-touch-rail"),
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -2105,12 +2253,14 @@ private fun LandscapeJoystickSessionLayout(
             keepScreenOn = keepScreenOn,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .testTag("wide-emulator"),
         )
         Box(
             modifier = Modifier
                 .width(fireWidth)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .testTag("wide-right-touch-rail"),
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),

@@ -181,6 +181,95 @@ class InputControlsViewModelTest {
     }
 
     @Test
+    fun concurrentTouchControlsDispatchAlongsideKeyboardMode() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        advanceUntilIdle()
+        viewModel.onImeTextChanged("", "a")
+        viewModel.onConcurrentJoystickMoved(1f, -1f)
+        viewModel.onConcurrentFirePressed()
+        viewModel.onConcurrentFireReleased()
+        viewModel.onConcurrentJoystickReleased()
+        advanceTimeBy(75)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetKeyState(AtariKeyCode.AKEY_a, true),
+                SessionCommand.SetJoystickState(port = 0, x = 1f, y = -1f, fire = false),
+                SessionCommand.SetJoystickState(port = 0, x = 1f, y = -1f, fire = true),
+                SessionCommand.SetJoystickState(port = 0, x = 1f, y = -1f, fire = false),
+                SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = false),
+                SessionCommand.SetKeyState(AtariKeyCode.AKEY_a, false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
+    @Test
+    fun releasingConcurrentControlsNeutralizesHeldJoystickState() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        advanceUntilIdle()
+        viewModel.onConcurrentJoystickMoved(-0.5f, 0.75f)
+        viewModel.onConcurrentFirePressed()
+        viewModel.releaseConcurrentTouchControls()
+
+        assertEquals(
+            SessionCommand.SetJoystickState(port = 0, x = 0f, y = 0f, fire = false),
+            sessionRepository.commands.last(),
+        )
+    }
+
+    @Test
+    fun concurrentPaddleDispatchesAndReleasesWhileKeyboardModeIsSelected() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_1, PortInputDevice.PADDLE)
+        advanceUntilIdle()
+        viewModel.onConcurrentPaddlePositionChanged(0.75f)
+        viewModel.onConcurrentFirePressed()
+        viewModel.releaseConcurrentTouchControls()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetPaddleState(port = 0, position = 0.75f, fire = false),
+                SessionCommand.SetPaddleState(port = 0, position = 0.75f, fire = true),
+                SessionCommand.SetPaddleState(port = 0, position = 0.75f, fire = false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
+    @Test
+    fun concurrentKoalaTriggersDispatchAndReleaseWhileKeyboardModeIsSelected() = runTest {
+        val settingsRepository = createSettingsRepository(backgroundScope)
+        val sessionRepository = FakeSessionRepository()
+        val viewModel = InputControlsViewModel(settingsRepository, sessionRepository)
+
+        settingsRepository.updatePortInputDevice(JoystickPort.PORT_1, PortInputDevice.KOALA_PAD)
+        advanceUntilIdle()
+        viewModel.onConcurrentFirePressed()
+        viewModel.onConcurrentKoalaRightTriggerPressed()
+        viewModel.releaseConcurrentTouchControls()
+
+        assertEquals(
+            listOf(
+                SessionCommand.SetKoalaPadTriggers(port = 0, leftPressed = true, rightPressed = false),
+                SessionCommand.SetKoalaPadTriggers(port = 0, leftPressed = true, rightPressed = true),
+                SessionCommand.SetKoalaPadTriggers(port = 0, leftPressed = false, rightPressed = false),
+            ),
+            sessionRepository.commands,
+        )
+    }
+
+    @Test
     fun koalaPadTriggerButtonsDispatchLeftAndRightState() = runTest {
         val settingsRepository = createSettingsRepository(backgroundScope)
         val sessionRepository = FakeSessionRepository()

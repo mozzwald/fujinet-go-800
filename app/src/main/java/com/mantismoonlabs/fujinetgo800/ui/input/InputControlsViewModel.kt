@@ -55,6 +55,7 @@ class InputControlsViewModel(
     private val consoleKeysPressed = linkedSetOf<AtariConsoleKey>()
     private var paddlePosition = 0.5f
     private var paddleFirePressed = false
+    private var paddleFirePort: Int? = null
     private var koalaLeftTriggerPressed = false
     private var koalaRightTriggerPressed = false
     private var koalaTriggerPort: Int? = null
@@ -83,8 +84,7 @@ class InputControlsViewModel(
 
     fun onControlModeSelected(controlMode: ControlMode) {
         if (controlMode != ControlMode.JOYSTICK) {
-            joystickDispatcher.reset()
-            releaseKoalaTriggersIfNeeded()
+            releaseConcurrentTouchControls()
         }
         viewModelScope.launch {
             settingsRepository.updateControlMode(controlMode)
@@ -206,30 +206,121 @@ class InputControlsViewModel(
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
         }
-        joystickDispatcher.move(x, y)
+        dispatchJoystickMoved(x, y)
+    }
+
+    fun onConcurrentJoystickMoved(x: Float, y: Float) {
+        dispatchJoystickMoved(x, y)
     }
 
     fun onPaddlePositionChanged(position: Float) {
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
         }
-        val port = uiState.value.settings.paddlePort()?.index ?: return
-        paddlePosition = position.coerceIn(0f, 1f)
-        sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = paddleFirePressed)
+        dispatchPaddlePositionChanged(position)
+    }
+
+    fun onConcurrentPaddlePositionChanged(position: Float) {
+        dispatchPaddlePositionChanged(position)
     }
 
     fun onJoystickReleased() {
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
         }
-        joystickDispatcher.release()
+        dispatchJoystickReleased()
+    }
+
+    fun onConcurrentJoystickReleased() {
+        dispatchJoystickReleased()
     }
 
     fun onFirePressed() {
         if (uiState.value.controlMode != ControlMode.JOYSTICK) {
             return
         }
+        dispatchFirePressed()
+    }
+
+    fun onConcurrentFirePressed() {
+        dispatchFirePressed()
+    }
+
+    fun onKoalaRightTriggerPressed() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        dispatchKoalaRightTriggerPressed()
+    }
+
+    fun onConcurrentKoalaRightTriggerPressed() {
+        dispatchKoalaRightTriggerPressed()
+    }
+
+    fun onFireReleased() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        dispatchFireReleased()
+    }
+
+    fun onConcurrentFireReleased() {
+        dispatchFireReleased()
+    }
+
+    fun onKoalaRightTriggerReleased() {
+        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
+            return
+        }
+        dispatchKoalaRightTriggerReleased()
+    }
+
+    fun onConcurrentKoalaRightTriggerReleased() {
+        dispatchKoalaRightTriggerReleased()
+    }
+
+    fun releaseConcurrentTouchControls() {
+        joystickDispatcher.reset()
+        paddleFirePort?.let { port ->
+            paddleFirePressed = false
+            sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
+        }
+        paddleFirePort = null
+        releaseKoalaTriggersIfNeeded()
+    }
+
+    private fun dispatchJoystickMoved(x: Float, y: Float) {
+        joystickDispatcher.move(x, y)
+    }
+
+    private fun dispatchPaddlePositionChanged(position: Float) {
+        val port = uiState.value.settings.paddlePort()?.index ?: return
+        if (paddleFirePressed && paddleFirePort != null && paddleFirePort != port) {
+            sessionRepository.setPaddleState(
+                port = paddleFirePort!!,
+                position = paddlePosition,
+                fire = false,
+            )
+            paddleFirePressed = false
+        }
+        paddlePosition = position.coerceIn(0f, 1f)
+        sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = paddleFirePressed)
+    }
+
+    private fun dispatchJoystickReleased() {
+        joystickDispatcher.release()
+    }
+
+    private fun dispatchFirePressed() {
         uiState.value.settings.paddlePort()?.index?.let { port ->
+            if (paddleFirePressed && paddleFirePort != null && paddleFirePort != port) {
+                sessionRepository.setPaddleState(
+                    port = paddleFirePort!!,
+                    position = paddlePosition,
+                    fire = false,
+                )
+            }
+            paddleFirePort = port
             paddleFirePressed = true
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = true)
             return
@@ -243,23 +334,19 @@ class InputControlsViewModel(
         joystickDispatcher.pressFire()
     }
 
-    fun onKoalaRightTriggerPressed() {
-        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
-            return
-        }
+    private fun dispatchKoalaRightTriggerPressed() {
         val port = uiState.value.settings.koalaPadPort()?.index ?: return
         resetKoalaTriggerStateIfPortChanged(port)
         koalaRightTriggerPressed = true
         sessionRepository.setKoalaPadTriggers(port, koalaLeftTriggerPressed, koalaRightTriggerPressed)
     }
 
-    fun onFireReleased() {
-        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
-            return
-        }
-        uiState.value.settings.paddlePort()?.index?.let { port ->
+    private fun dispatchFireReleased() {
+        val configuredPaddlePort = uiState.value.settings.paddlePort()?.index
+        (paddleFirePort ?: configuredPaddlePort)?.let { port ->
             paddleFirePressed = false
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
+            paddleFirePort = null
             return
         }
         uiState.value.settings.koalaPadPort()?.index?.let { port ->
@@ -271,10 +358,7 @@ class InputControlsViewModel(
         joystickDispatcher.releaseFire()
     }
 
-    fun onKoalaRightTriggerReleased() {
-        if (uiState.value.controlMode != ControlMode.JOYSTICK) {
-            return
-        }
+    private fun dispatchKoalaRightTriggerReleased() {
         val port = uiState.value.settings.koalaPadPort()?.index ?: return
         resetKoalaTriggerStateIfPortChanged(port)
         koalaRightTriggerPressed = false
@@ -307,9 +391,11 @@ class InputControlsViewModel(
         pendingReleaseJobs.clear()
         consoleKeysPressed.clear()
         joystickDispatcher.reset()
-        uiState.value.settings.paddlePort()?.index?.let { port ->
+        (paddleFirePort ?: uiState.value.settings.paddlePort()?.index)?.let { port ->
             sessionRepository.setPaddleState(port = port, position = paddlePosition, fire = false)
         }
+        paddleFirePressed = false
+        paddleFirePort = null
         uiState.value.settings.koalaPadPort()?.index?.let { port ->
             koalaLeftTriggerPressed = false
             koalaRightTriggerPressed = false
@@ -404,6 +490,7 @@ internal class TouchJoystickDispatcher(
     private var xAxis = 0f
     private var yAxis = 0f
     private var firePressed = false
+    private var lastDispatchPort: Int? = null
 
     fun move(x: Float, y: Float) {
         xAxis = x.coerceIn(-1f, 1f)
@@ -431,11 +518,22 @@ internal class TouchJoystickDispatcher(
         xAxis = 0f
         yAxis = 0f
         firePressed = false
-        dispatch()
+        val currentPort = portProvider()
+        lastDispatchPort?.takeIf { it != currentPort }?.let { previousPort ->
+            onDispatch(previousPort, xAxis, yAxis, firePressed)
+        }
+        currentPort?.let { port ->
+            onDispatch(port, xAxis, yAxis, firePressed)
+        }
+        lastDispatchPort = null
     }
 
     private fun dispatch() {
         val port = portProvider() ?: return
+        lastDispatchPort?.takeIf { it != port }?.let { previousPort ->
+            onDispatch(previousPort, 0f, 0f, false)
+        }
         onDispatch(port, xAxis, yAxis, firePressed)
+        lastDispatchPort = port
     }
 }

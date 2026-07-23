@@ -4,6 +4,9 @@
 * Add adaptive large-screen and foldable layouts that avoid separating or occluding hinges
 * Preserve the immersive top bar and controls in hidden system-bar areas in portrait and landscape
 * Add Android 16-compatible edge-to-edge behavior and 16 KB native-library packaging validation
+* Fix unfolded foldables selecting the cramped portrait runtime layout unless the device was rotated
+* Show the keyboard and touch controls together on wide displays when enough space is available
+* Allow portrait joystick and keyboard drawers to expand to comfortable sizes while preserving the emulator view
 
 # v1.2.1
 * Fix external controller source detection
