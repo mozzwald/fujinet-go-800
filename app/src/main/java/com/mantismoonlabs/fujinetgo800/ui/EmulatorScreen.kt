@@ -112,6 +112,7 @@ import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.AtariMachineType
 import com.mantismoonlabs.fujinetgo800.settings.ArtifactingMode
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
+import com.mantismoonlabs.fujinetgo800.settings.KeyboardLayoutStyle
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
 import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.KoalaPadShortcutKey
@@ -160,6 +161,9 @@ import com.mantismoonlabs.fujinetgo800.ui.input.JoystickControls
 import com.mantismoonlabs.fujinetgo800.ui.input.KoalaPadControls
 import com.mantismoonlabs.fujinetgo800.ui.input.PaddleControls
 import com.mantismoonlabs.fujinetgo800.ui.input.PaddleSliderControl
+import com.mantismoonlabs.fujinetgo800.ui.input.SplitAtariKeyboardLeft
+import com.mantismoonlabs.fujinetgo800.ui.input.SplitAtariKeyboardRight
+import com.mantismoonlabs.fujinetgo800.ui.input.rememberAtariKeyboardModifierState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -607,6 +611,7 @@ fun EmulatorScreen(
                 onScanlinesChanged = launchSettingsViewModel::onScanlinesChanged,
                 onStereoPokeyChanged = launchSettingsViewModel::onStereoPokeyChanged,
                 onKeyboardInputModeSelected = launchSettingsViewModel::onKeyboardInputModeSelected,
+                onKeyboardLayoutStyleSelected = launchSettingsViewModel::onKeyboardLayoutStyleSelected,
                 onKeyboardHapticsChanged = launchSettingsViewModel::onKeyboardHapticsChanged,
                 onStickyKeyboardShiftChanged = launchSettingsViewModel::onStickyKeyboardShiftChanged,
                 onStickyKeyboardCtrlChanged = launchSettingsViewModel::onStickyKeyboardCtrlChanged,
@@ -1057,59 +1062,104 @@ fun EmulatorScreen(
                         }
                     }
                 } else if (wideKeyboardLayout) {
-                    LandscapeKeyboardSessionLayout(
-                        sessionRepository = sessionRepository,
-                        emulatorSettings = launchSettingsState.settings,
-                        scaleMode = launchSettingsState.settings.scaleMode,
-                        scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
-                        keepScreenOn = launchSettingsState.settings.keepScreenOn,
-                        screenWidth = screenWidth,
-                        onSwapFujiNetDisks = onSwapFujiNetDisks,
-                        onToggleInputMode = toggleInputMode,
-                        toggleInputIconResId = toggleInputIconResId,
-                        toggleInputDescription = toggleInputDescription,
-                        onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
-                        pauseEnabled = uiState.isPauseEnabled,
-                        pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
-                            R.drawable.ic_play
-                        } else {
-                            R.drawable.ic_pause
-                        },
-                        pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
-                            "Resume emulation"
-                        } else {
-                            "Pause emulation"
-                        },
-                        onResetPressed = openResetDialog,
-                        onSettingsPressed = shellViewModel::onSettingsPressed,
-                        onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
-                        onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
-                        useInternalKeyboard = useInternalKeyboard,
-                        onKeyPressed = inputControlsViewModel::onKeyPressed,
-                        onKeyReleased = inputControlsViewModel::onKeyReleased,
-                        onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
-                        keyboardResetTrigger = keyboardResetTrigger,
-                        keyboardHapticsEnabled = inputControlsState.keyboardHapticsEnabled,
-                        stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
-                        stickyCtrlEnabled = launchSettingsState.settings.stickyKeyboardCtrlEnabled,
-                        stickyFnEnabled = launchSettingsState.settings.stickyKeyboardFnEnabled,
-                        onAtariPressed = {
-                            inputControlsViewModel.onKeyPressed(
-                                AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
-                            )
-                        },
-                        onAtariReleased = {
-                            inputControlsViewModel.onKeyReleased(
-                                AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
-                            )
-                        },
-                        onImeTextChanged = inputControlsViewModel::onImeTextChanged,
-                        onImeEnterPressed = inputControlsViewModel::onImeEnterPressed,
-                        keyboardPanelHeight = wideKeyboardPanelHeight,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                    )
+                    if (
+                        useInternalKeyboard &&
+                        launchSettingsState.settings.keyboardLayoutStyle == KeyboardLayoutStyle.SPLIT
+                    ) {
+                        SplitKeyboardLandscapeSessionLayout(
+                            sessionRepository = sessionRepository,
+                            emulatorSettings = launchSettingsState.settings,
+                            scaleMode = launchSettingsState.settings.scaleMode,
+                            scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                            keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                            screenWidth = screenWidth,
+                            onSwapFujiNetDisks = onSwapFujiNetDisks,
+                            onToggleInputMode = toggleInputMode,
+                            toggleInputIconResId = toggleInputIconResId,
+                            toggleInputDescription = toggleInputDescription,
+                            onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
+                            pauseEnabled = uiState.isPauseEnabled,
+                            pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
+                                R.drawable.ic_play
+                            } else {
+                                R.drawable.ic_pause
+                            },
+                            pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
+                                "Resume emulation"
+                            } else {
+                                "Pause emulation"
+                            },
+                            onResetPressed = openResetDialog,
+                            onSettingsPressed = shellViewModel::onSettingsPressed,
+                            onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
+                            onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
+                            onKeyPressed = inputControlsViewModel::onKeyPressed,
+                            onKeyReleased = inputControlsViewModel::onKeyReleased,
+                            onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                            keyboardResetTrigger = keyboardResetTrigger,
+                            keyboardHapticsEnabled = inputControlsState.keyboardHapticsEnabled,
+                            stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
+                            stickyCtrlEnabled = launchSettingsState.settings.stickyKeyboardCtrlEnabled,
+                            stickyFnEnabled = launchSettingsState.settings.stickyKeyboardFnEnabled,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        )
+                    } else {
+                        LandscapeKeyboardSessionLayout(
+                            sessionRepository = sessionRepository,
+                            emulatorSettings = launchSettingsState.settings,
+                            scaleMode = launchSettingsState.settings.scaleMode,
+                            scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                            keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                            screenWidth = screenWidth,
+                            onSwapFujiNetDisks = onSwapFujiNetDisks,
+                            onToggleInputMode = toggleInputMode,
+                            toggleInputIconResId = toggleInputIconResId,
+                            toggleInputDescription = toggleInputDescription,
+                            onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
+                            pauseEnabled = uiState.isPauseEnabled,
+                            pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
+                                R.drawable.ic_play
+                            } else {
+                                R.drawable.ic_pause
+                            },
+                            pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
+                                "Resume emulation"
+                            } else {
+                                "Pause emulation"
+                            },
+                            onResetPressed = openResetDialog,
+                            onSettingsPressed = shellViewModel::onSettingsPressed,
+                            onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
+                            onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
+                            useInternalKeyboard = useInternalKeyboard,
+                            onKeyPressed = inputControlsViewModel::onKeyPressed,
+                            onKeyReleased = inputControlsViewModel::onKeyReleased,
+                            onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                            keyboardResetTrigger = keyboardResetTrigger,
+                            keyboardHapticsEnabled = inputControlsState.keyboardHapticsEnabled,
+                            stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
+                            stickyCtrlEnabled = launchSettingsState.settings.stickyKeyboardCtrlEnabled,
+                            stickyFnEnabled = launchSettingsState.settings.stickyKeyboardFnEnabled,
+                            onAtariPressed = {
+                                inputControlsViewModel.onKeyPressed(
+                                    AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                                )
+                            },
+                            onAtariReleased = {
+                                inputControlsViewModel.onKeyReleased(
+                                    AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                                )
+                            },
+                            onImeTextChanged = inputControlsViewModel::onImeTextChanged,
+                            onImeEnterPressed = inputControlsViewModel::onImeEnterPressed,
+                            keyboardPanelHeight = wideKeyboardPanelHeight,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        )
+                    }
                 } else if (wideControlsFullscreenHidden) {
                     LandscapeFullscreenSessionLayout(
                         sessionRepository = sessionRepository,
@@ -2066,6 +2116,7 @@ private fun LandscapeKeyboardSessionLayout(
     modifier: Modifier = Modifier,
 ) {
     val functionRailWidth = minOf(screenWidth * 0.18f, 160.dp)
+    val escMapping = remember { AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ESCAPE) }
 
     Column(
         modifier = modifier,
@@ -2089,6 +2140,12 @@ private fun LandscapeKeyboardSessionLayout(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        HoldableCompactTextButton(
+                            label = "ESC",
+                            onPressed = { onFunctionKeyPressed(escMapping) },
+                            onReleased = { onFunctionKeyReleased(escMapping) },
+                            modifier = Modifier.width(52.dp),
+                        )
                         CompactIconButton(
                             iconResId = R.drawable.ic_disk_swap,
                             contentDescription = "Swap FujiNet disks",
@@ -2100,14 +2157,6 @@ private fun LandscapeKeyboardSessionLayout(
                             contentDescription = toggleInputDescription,
                             modifier = Modifier.width(52.dp),
                             onClick = onToggleInputMode,
-                        )
-                        CompactControlButton(
-                            label = "",
-                            modifier = Modifier.width(52.dp),
-                            onClick = onPauseTogglePressed,
-                            enabled = pauseEnabled,
-                            iconResId = pauseIconResId,
-                            contentDescription = pauseDescription,
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -2144,6 +2193,14 @@ private fun LandscapeKeyboardSessionLayout(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactControlButton(
+                            label = "",
+                            modifier = Modifier.width(52.dp),
+                            onClick = onPauseTogglePressed,
+                            enabled = pauseEnabled,
+                            iconResId = pauseIconResId,
+                            contentDescription = pauseDescription,
+                        )
                         CompactIconButton(
                             iconResId = R.drawable.ic_reset,
                             contentDescription = "Reset emulator",
@@ -2207,6 +2264,181 @@ private fun LandscapeKeyboardSessionLayout(
                     )
                 },
             )
+        }
+    }
+}
+
+/**
+ * Alternate to [LandscapeKeyboardSessionLayout] used when the "Split" keyboard layout
+ * setting is selected: instead of a fixed-height keyboard band below the emulator (which
+ * shrinks the emulator's viewport on short/wide landscape phones), the QWERTY keys are
+ * split across two rails flanking the emulator -- the same "no bottom band" shape as
+ * [LandscapeJoystickSessionLayout] -- so the emulator gets the full available height.
+ */
+@Composable
+private fun SplitKeyboardLandscapeSessionLayout(
+    sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
+    scaleMode: ScaleMode,
+    scanlinesEnabled: Boolean,
+    keepScreenOn: Boolean,
+    screenWidth: androidx.compose.ui.unit.Dp,
+    onSwapFujiNetDisks: () -> Unit,
+    onToggleInputMode: () -> Unit,
+    toggleInputIconResId: Int,
+    toggleInputDescription: String,
+    onPauseTogglePressed: () -> Unit,
+    pauseEnabled: Boolean,
+    pauseIconResId: Int,
+    pauseDescription: String,
+    onResetPressed: () -> Unit,
+    onSettingsPressed: () -> Unit,
+    onFunctionKeyPressed: (AtariKeyMapping) -> Unit,
+    onFunctionKeyReleased: (AtariKeyMapping) -> Unit,
+    onKeyPressed: (AtariKeyMapping) -> Unit,
+    onKeyReleased: (AtariKeyMapping) -> Unit,
+    onToggleInputLongPress: () -> Unit,
+    keyboardResetTrigger: Int,
+    keyboardHapticsEnabled: Boolean,
+    stickyShiftEnabled: Boolean,
+    stickyCtrlEnabled: Boolean,
+    stickyFnEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val splitKeyboardRailWidth = minOf(screenWidth * 0.29f, 280.dp)
+    val modifierState = rememberAtariKeyboardModifierState(resetTrigger = keyboardResetTrigger)
+    val escMapping = remember { AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ESCAPE) }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(splitKeyboardRailWidth)
+                .fillMaxHeight()
+                .testTag("split-keyboard-left-rail"),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HoldableCompactTextButton(
+                        label = "ESC",
+                        onPressed = { onFunctionKeyPressed(escMapping) },
+                        onReleased = { onFunctionKeyReleased(escMapping) },
+                        modifier = Modifier.width(52.dp),
+                    )
+                    CompactIconButton(
+                        iconResId = R.drawable.ic_disk_swap,
+                        contentDescription = "Swap FujiNet disks",
+                        modifier = Modifier.width(52.dp),
+                        onClick = onSwapFujiNetDisks,
+                    )
+                    CompactIconButton(
+                        iconResId = toggleInputIconResId,
+                        contentDescription = toggleInputDescription,
+                        modifier = Modifier.width(52.dp),
+                        onClick = onToggleInputMode,
+                    )
+                }
+                AtariFunctionBar(
+                    keys = landscapeLeftFunctionKeys,
+                    onKeyPressed = onFunctionKeyPressed,
+                    onKeyReleased = onFunctionKeyReleased,
+                    hapticsEnabled = keyboardHapticsEnabled,
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SplitAtariKeyboardLeft(
+                    modifierState = modifierState,
+                    onKeyPressed = onKeyPressed,
+                    onKeyReleased = onKeyReleased,
+                    onToggleInputMode = onToggleInputMode,
+                    onToggleInputLongPress = onToggleInputLongPress,
+                    toggleIconResId = toggleInputIconResId,
+                    toggleIconDescription = toggleInputDescription,
+                    hapticsEnabled = keyboardHapticsEnabled,
+                    stickyShiftEnabled = stickyShiftEnabled,
+                    stickyCtrlEnabled = stickyCtrlEnabled,
+                    stickyFnEnabled = stickyFnEnabled,
+                    compact = true,
+                    dense = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                )
+            }
+        }
+        PasteEnabledEmulatorRenderHost(
+            sessionRepository = sessionRepository,
+            emulatorSettings = emulatorSettings,
+            scaleMode = scaleMode,
+            scanlinesEnabled = scanlinesEnabled,
+            keepScreenOn = keepScreenOn,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .testTag("wide-emulator"),
+        )
+        Box(
+            modifier = Modifier
+                .width(splitKeyboardRailWidth)
+                .fillMaxHeight()
+                .testTag("split-keyboard-right-rail"),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CompactControlButton(
+                        label = "",
+                        modifier = Modifier.width(52.dp),
+                        onClick = onPauseTogglePressed,
+                        enabled = pauseEnabled,
+                        iconResId = pauseIconResId,
+                        contentDescription = pauseDescription,
+                    )
+                    CompactIconButton(
+                        iconResId = R.drawable.ic_reset,
+                        contentDescription = "Reset emulator",
+                        modifier = Modifier.width(52.dp),
+                        onClick = onResetPressed,
+                    )
+                    CompactIconButton(
+                        iconResId = R.drawable.ic_settings_gear,
+                        contentDescription = "Settings",
+                        modifier = Modifier.width(52.dp),
+                        onClick = onSettingsPressed,
+                    )
+                }
+                AtariFunctionBar(
+                    keys = landscapeRightFunctionKeys,
+                    onKeyPressed = onFunctionKeyPressed,
+                    onKeyReleased = onFunctionKeyReleased,
+                    hapticsEnabled = keyboardHapticsEnabled,
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SplitAtariKeyboardRight(
+                    modifierState = modifierState,
+                    onKeyPressed = onKeyPressed,
+                    onKeyReleased = onKeyReleased,
+                    hapticsEnabled = keyboardHapticsEnabled,
+                    stickyShiftEnabled = stickyShiftEnabled,
+                    stickyCtrlEnabled = stickyCtrlEnabled,
+                    stickyFnEnabled = stickyFnEnabled,
+                    compact = true,
+                    dense = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -3367,6 +3599,7 @@ private fun FullScreenSettings(
     onScanlinesChanged: (Boolean) -> Unit,
     onStereoPokeyChanged: (Boolean) -> Unit,
     onKeyboardInputModeSelected: (KeyboardInputMode) -> Unit,
+    onKeyboardLayoutStyleSelected: (KeyboardLayoutStyle) -> Unit,
     onKeyboardHapticsChanged: (Boolean) -> Unit,
     onStickyKeyboardShiftChanged: (Boolean) -> Unit,
     onStickyKeyboardCtrlChanged: (Boolean) -> Unit,
@@ -3513,6 +3746,7 @@ private fun FullScreenSettings(
                         onBackgroundAudioChanged = onBackgroundAudioChanged,
                         onOrientationModeSelected = onOrientationModeSelected,
                         onKeyboardInputModeSelected = onKeyboardInputModeSelected,
+                        onKeyboardLayoutStyleSelected = onKeyboardLayoutStyleSelected,
                         onKeyboardHapticsChanged = onKeyboardHapticsChanged,
                         onStickyKeyboardShiftChanged = onStickyKeyboardShiftChanged,
                         onStickyKeyboardCtrlChanged = onStickyKeyboardCtrlChanged,
@@ -4106,6 +4340,7 @@ private fun AppSettingsTab(
     onBackgroundAudioChanged: (Boolean) -> Unit,
     onOrientationModeSelected: (OrientationMode) -> Unit,
     onKeyboardInputModeSelected: (KeyboardInputMode) -> Unit,
+    onKeyboardLayoutStyleSelected: (KeyboardLayoutStyle) -> Unit,
     onKeyboardHapticsChanged: (Boolean) -> Unit,
     onStickyKeyboardShiftChanged: (Boolean) -> Unit,
     onStickyKeyboardCtrlChanged: (Boolean) -> Unit,
@@ -4162,6 +4397,21 @@ private fun AppSettingsTab(
                 selectedValue = state.settings.keyboardInputMode,
                 onSelected = onKeyboardInputModeSelected,
                 testTagPrefix = "keyboard-input-mode",
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            SettingsPickerRow(
+                title = "Keyboard layout",
+                value = state.keyboardLayoutStyleLabel,
+                subtitle = "Split places keys on either side of the screen in landscape, " +
+                    "giving the emulator more room. No effect in portrait or with the " +
+                    "Android keyboard.",
+                options = KeyboardLayoutStyle.entries.map { style ->
+                    PickerOption(value = style, label = style.toLabel())
+                },
+                selectedValue = state.settings.keyboardLayoutStyle,
+                onSelected = onKeyboardLayoutStyleSelected,
+                testTagPrefix = "keyboard-layout-style",
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -4866,6 +5116,11 @@ private fun OrientationMode.toLabel(): String = when (this) {
 private fun KeyboardInputMode.toLabel(): String = when (this) {
     KeyboardInputMode.INTERNAL -> "Internal"
     KeyboardInputMode.ANDROID -> "Android"
+}
+
+private fun KeyboardLayoutStyle.toLabel(): String = when (this) {
+    KeyboardLayoutStyle.BOTTOM -> "Bottom"
+    KeyboardLayoutStyle.SPLIT -> "Split"
 }
 
 private fun JoystickInputStyle.toLabel(): String = when (this) {

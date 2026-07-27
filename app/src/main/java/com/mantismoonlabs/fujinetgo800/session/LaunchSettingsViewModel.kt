@@ -17,6 +17,7 @@ import com.mantismoonlabs.fujinetgo800.settings.EmulatorSettingsRepository
 import com.mantismoonlabs.fujinetgo800.settings.JoystickInputStyle
 import com.mantismoonlabs.fujinetgo800.settings.JoystickPort
 import com.mantismoonlabs.fujinetgo800.settings.KeyboardInputMode
+import com.mantismoonlabs.fujinetgo800.settings.KeyboardLayoutStyle
 import com.mantismoonlabs.fujinetgo800.settings.KoalaPadShortcutKey
 import com.mantismoonlabs.fujinetgo800.settings.LaunchMode
 import com.mantismoonlabs.fujinetgo800.settings.MemoryProfile
@@ -67,6 +68,7 @@ data class LaunchSettingsUiState(
     val pauseOnAppSwitchLabel: String = "Off",
     val orientationModeLabel: String = "Follow system",
     val keyboardInputModeLabel: String = "Android keyboard",
+    val keyboardLayoutStyleLabel: String = "Split",
     val keyboardHapticsLabel: String = "On",
     val stickyKeyboardShiftLabel: String = "Off",
     val stickyKeyboardCtrlLabel: String = "Off",
@@ -181,6 +183,7 @@ class LaunchSettingsViewModel(
                 pauseOnAppSwitchLabel = settings.pauseOnAppSwitch.toWakeLabel(),
                 orientationModeLabel = settings.orientationMode.toLabel(),
                 keyboardInputModeLabel = settings.keyboardInputMode.toLabel(),
+                keyboardLayoutStyleLabel = settings.keyboardLayoutStyle.toLabel(),
                 keyboardHapticsLabel = settings.keyboardHapticsEnabled.toWakeLabel(),
                 stickyKeyboardShiftLabel = settings.stickyKeyboardShiftEnabled.toWakeLabel(),
                 stickyKeyboardCtrlLabel = settings.stickyKeyboardCtrlEnabled.toWakeLabel(),
@@ -445,6 +448,13 @@ class LaunchSettingsViewModel(
         editableSettings.update { settings -> settings.copy(joystickInputStyle = style) }
         persistChange {
             settingsRepository.updateJoystickInputStyle(style)
+        }
+    }
+
+    fun onKeyboardLayoutStyleSelected(style: KeyboardLayoutStyle) {
+        editableSettings.update { settings -> settings.copy(keyboardLayoutStyle = style) }
+        persistChange {
+            settingsRepository.updateKeyboardLayoutStyle(style)
         }
     }
 
@@ -732,6 +742,11 @@ class LaunchSettingsViewModel(
     private fun KeyboardInputMode.toLabel(): String = when (this) {
         KeyboardInputMode.ANDROID -> "Android keyboard"
         KeyboardInputMode.INTERNAL -> "Internal keyboard"
+    }
+
+    private fun KeyboardLayoutStyle.toLabel(): String = when (this) {
+        KeyboardLayoutStyle.BOTTOM -> "Bottom"
+        KeyboardLayoutStyle.SPLIT -> "Split"
     }
 
     private fun JoystickInputStyle.toLabel(): String = when (this) {

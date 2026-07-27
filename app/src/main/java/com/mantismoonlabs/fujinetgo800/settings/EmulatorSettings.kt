@@ -32,6 +32,11 @@ enum class JoystickInputStyle {
     DPAD_4_WAY,
 }
 
+enum class KeyboardLayoutStyle {
+    BOTTOM,
+    SPLIT,
+}
+
 enum class KoalaPadShortcutKey {
     SPACE,
     RETURN,
@@ -187,6 +192,7 @@ data class EmulatorSettings(
     val inputHideHintSeen: Boolean = false,
     val portraitInputPanelSizeFraction: Float = 1f,
     val keyboardInputMode: KeyboardInputMode = KeyboardInputMode.INTERNAL,
+    val keyboardLayoutStyle: KeyboardLayoutStyle = KeyboardLayoutStyle.SPLIT,
     val keyboardHapticsEnabled: Boolean = true,
     val stickyKeyboardShiftEnabled: Boolean = false,
     val stickyKeyboardCtrlEnabled: Boolean = false,

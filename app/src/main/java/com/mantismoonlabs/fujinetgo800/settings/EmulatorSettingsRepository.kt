@@ -53,6 +53,7 @@ internal object EmulatorSettingsPreferenceKeys {
     val stickyKeyboardFnEnabled = booleanPreferencesKey("sticky_keyboard_fn_enabled")
     val joystickHapticsEnabled = booleanPreferencesKey("joystick_haptics_enabled")
     val joystickInputStyle = stringPreferencesKey("joystick_input_style")
+    val keyboardLayoutStyle = stringPreferencesKey("keyboard_layout_style")
     val port1InputDevice = stringPreferencesKey("port_1_input_device")
     val port2InputDevice = stringPreferencesKey("port_2_input_device")
     val port3InputDevice = stringPreferencesKey("port_3_input_device")
@@ -268,6 +269,12 @@ class EmulatorSettingsRepository private constructor(
     suspend fun updateJoystickInputStyle(joystickInputStyle: JoystickInputStyle) {
         dataStore.edit { preferences ->
             preferences[EmulatorSettingsPreferenceKeys.joystickInputStyle] = joystickInputStyle.name
+        }
+    }
+
+    suspend fun updateKeyboardLayoutStyle(keyboardLayoutStyle: KeyboardLayoutStyle) {
+        dataStore.edit { preferences ->
+            preferences[EmulatorSettingsPreferenceKeys.keyboardLayoutStyle] = keyboardLayoutStyle.name
         }
     }
 
@@ -506,6 +513,10 @@ private fun Preferences.toEmulatorSettings(): EmulatorSettings {
         keyboardInputMode = getEnumOrDefault(
             key = EmulatorSettingsPreferenceKeys.keyboardInputMode,
             defaultValue = KeyboardInputMode.INTERNAL,
+        ),
+        keyboardLayoutStyle = getEnumOrDefault(
+            key = EmulatorSettingsPreferenceKeys.keyboardLayoutStyle,
+            defaultValue = KeyboardLayoutStyle.SPLIT,
         ),
         keyboardHapticsEnabled = this[EmulatorSettingsPreferenceKeys.keyboardHapticsEnabled] ?: true,
         stickyKeyboardShiftEnabled = this[EmulatorSettingsPreferenceKeys.stickyKeyboardShiftEnabled] ?: false,
