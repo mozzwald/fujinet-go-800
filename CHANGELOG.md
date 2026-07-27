@@ -7,6 +7,7 @@
 * Fix unfolded foldables selecting the cramped portrait runtime layout unless the device was rotated
 * Show the keyboard and touch controls together on wide displays when enough space is available
 * Allow portrait joystick and keyboard drawers to expand to comfortable sizes while preserving the emulator view
+* Fix Samsung One UI on-screen navigation buttons reappearing and overlapping the touch controls in portrait and landscape
 
 # v1.2.1
 * Fix external controller source detection

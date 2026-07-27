@@ -19,8 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import com.mantismoonlabs.fujinetgo800.input.AtariKeyMapping
+import com.mantismoonlabs.fujinetgo800.ui.AutoSizeText
 
 data class AtariFunctionKeySpec(
     val label: String,
@@ -99,10 +99,10 @@ private fun HoldableFunctionButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
+        AutoSizeText(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
         )
     }

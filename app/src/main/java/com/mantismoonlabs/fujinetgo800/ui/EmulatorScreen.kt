@@ -80,6 +80,7 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -89,7 +90,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -208,13 +211,31 @@ fun EmulatorScreen(
     val density = LocalDensity.current
     val windowSize = LocalWindowInfo.current.containerSize
     val fold = rememberEmulatorFold()
+    // The emulator is immersive, so hidden system-bar regions normally remain usable. Samsung's
+    // One UI, however, doesn't reliably keep the on-screen navigation bar hidden under
+    // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE (see MainActivity.enterImmersiveMode) -- it can stay
+    // visible and overlap the controls. In portrait it sits at the bottom; in landscape the
+    // 3-button bar rotates to a vertical bar on the left or right edge instead. Reserve real
+    // space on whichever edge it's actually occupying so content bounds shrink to avoid it,
+    // instead of assuming it's always hidden.
+    val isSamsungDevice = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    val layoutDirection = LocalLayoutDirection.current
+    val navigationBarInsets = WindowInsets.navigationBars
     val windowLayout = calculateEmulatorWindowLayout(
         metrics = EmulatorWindowMetrics(
             widthPx = windowSize.width,
             heightPx = windowSize.height,
-            // The emulator is immersive, so hidden system-bar regions remain usable. Physical
-            // folding features are handled separately below and can still constrain content to
-            // an uninterrupted pane.
+            safeInsets = if (isSamsungDevice) {
+                EmulatorWindowInsets(
+                    left = navigationBarInsets.getLeft(density, layoutDirection),
+                    right = navigationBarInsets.getRight(density, layoutDirection),
+                    bottom = navigationBarInsets.getBottom(density),
+                )
+            } else {
+                EmulatorWindowInsets()
+            },
+            // Physical folding features are handled separately below and can still constrain
+            // content to an uninterrupted pane.
             fold = fold,
         ),
         expandedWidthThresholdPx = with(density) { 600.dp.roundToPx() },
@@ -240,6 +261,7 @@ fun EmulatorScreen(
         ),
     )
     val useWideRuntimeLayout = runtimeLayout.isWide
+    val useSquareFoldableLayout = runtimeLayout.isSquareFoldable
     val compactPortraitControls = !useWideRuntimeLayout && screenHeight <= 760.dp
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val inputPanelVisible = if (useWideRuntimeLayout) true else inputControlsState.isInputPanelVisible
@@ -252,18 +274,28 @@ fun EmulatorScreen(
         (screenHeight * 0.43f).coerceIn(300.dp, 390.dp)
     }
     val useWideJoystickLayout = sessionState is SessionState.Running &&
-        useWideRuntimeLayout &&
+        runtimeLayout.placement == EmulatorRuntimePlacement.Wide &&
         !wideControlsFullscreenHidden &&
         inputPanelVisible &&
         inputControlsState.controlMode == ControlMode.JOYSTICK
     val wideKeyboardLayout = sessionState is SessionState.Running &&
-        useWideRuntimeLayout &&
+        runtimeLayout.placement == EmulatorRuntimePlacement.Wide &&
         !wideControlsFullscreenHidden &&
         inputControlsState.isKeyboardVisible
     val useCombinedWideKeyboardLayout =
         wideKeyboardLayout && runtimeLayout.showsConcurrentTouchControls
+    val useSquareFoldableJoystickLayout = sessionState is SessionState.Running &&
+        useSquareFoldableLayout &&
+        !wideControlsFullscreenHidden &&
+        inputPanelVisible &&
+        inputControlsState.controlMode == ControlMode.JOYSTICK
+    val useSquareFoldableKeyboardLayout = sessionState is SessionState.Running &&
+        useSquareFoldableLayout &&
+        !wideControlsFullscreenHidden &&
+        inputControlsState.isKeyboardVisible
     val useWideRuntimeChrome =
-        useWideJoystickLayout || wideKeyboardLayout || wideControlsFullscreenHidden
+        useWideJoystickLayout || wideKeyboardLayout || wideControlsFullscreenHidden ||
+            useSquareFoldableJoystickLayout || useSquareFoldableKeyboardLayout
     val shouldReclaimViewportSpace = sessionState is SessionState.Running &&
         !useWideRuntimeLayout &&
         !uiState.settingsVisible
@@ -760,7 +792,107 @@ fun EmulatorScreen(
                         .fillMaxWidth()
                 },
             ) {
-                if (useWideJoystickLayout) {
+                if (useSquareFoldableJoystickLayout) {
+                    SquareFoldableJoystickSessionLayout(
+                        sessionRepository = sessionRepository,
+                        emulatorSettings = launchSettingsState.settings,
+                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                        keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
+                        onSwapFujiNetDisks = onSwapFujiNetDisks,
+                        onToggleInputMode = toggleInputMode,
+                        toggleInputIconResId = toggleInputIconResId,
+                        toggleInputDescription = toggleInputDescription,
+                        onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
+                        pauseEnabled = uiState.isPauseEnabled,
+                        pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
+                            R.drawable.ic_play
+                        } else {
+                            R.drawable.ic_pause
+                        },
+                        pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
+                            "Resume emulation"
+                        } else {
+                            "Pause emulation"
+                        },
+                        onResetPressed = openResetDialog,
+                        onSettingsPressed = shellViewModel::onSettingsPressed,
+                        onPortStatusPressed = { portInputPickerPort = it },
+                        onJoystickMoved = inputControlsViewModel::onJoystickMoved,
+                        onJoystickReleased = inputControlsViewModel::onJoystickReleased,
+                        onFirePressed = inputControlsViewModel::onFirePressed,
+                        onFireReleased = inputControlsViewModel::onFireReleased,
+                        onKoalaRightTriggerPressed = inputControlsViewModel::onKoalaRightTriggerPressed,
+                        onKoalaRightTriggerReleased = inputControlsViewModel::onKoalaRightTriggerReleased,
+                        paddleActive = launchSettingsState.settings.paddlePort() != null,
+                        koalaActive = launchSettingsState.settings.koalaPadPort() != null,
+                        paddlePosition = paddlePosition,
+                        onPaddlePositionChanged = onPaddlePositionChanged,
+                        onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                        onFunctionKeyPressed = inputControlsViewModel::onFunctionKeyPressed,
+                        onFunctionKeyReleased = inputControlsViewModel::onFunctionKeyReleased,
+                        joystickInputStyle = inputControlsState.joystickInputStyle,
+                        joystickHapticsEnabled = inputControlsState.joystickHapticsEnabled,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
+                } else if (useSquareFoldableKeyboardLayout) {
+                    SquareFoldableKeyboardSessionLayout(
+                        sessionRepository = sessionRepository,
+                        emulatorSettings = launchSettingsState.settings,
+                        scaleMode = launchSettingsState.settings.scaleMode,
+                        scanlinesEnabled = launchSettingsState.settings.scanlinesEnabled,
+                        keepScreenOn = launchSettingsState.settings.keepScreenOn,
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
+                        onSwapFujiNetDisks = onSwapFujiNetDisks,
+                        onToggleInputMode = toggleInputMode,
+                        toggleInputIconResId = toggleInputIconResId,
+                        toggleInputDescription = toggleInputDescription,
+                        onPauseTogglePressed = shellViewModel::onPauseTogglePressed,
+                        pauseEnabled = uiState.isPauseEnabled,
+                        pauseIconResId = if (uiState.pauseButtonLabel == "Resume") {
+                            R.drawable.ic_play
+                        } else {
+                            R.drawable.ic_pause
+                        },
+                        pauseDescription = if (uiState.pauseButtonLabel == "Resume") {
+                            "Resume emulation"
+                        } else {
+                            "Pause emulation"
+                        },
+                        onResetPressed = openResetDialog,
+                        onSettingsPressed = shellViewModel::onSettingsPressed,
+                        useInternalKeyboard = useInternalKeyboard,
+                        onKeyPressed = inputControlsViewModel::onKeyPressed,
+                        onKeyReleased = inputControlsViewModel::onKeyReleased,
+                        onToggleInputLongPress = enterLandscapeControlsFullscreenHidden,
+                        keyboardResetTrigger = keyboardResetTrigger,
+                        keyboardHapticsEnabled = inputControlsState.keyboardHapticsEnabled,
+                        stickyShiftEnabled = launchSettingsState.settings.stickyKeyboardShiftEnabled,
+                        stickyCtrlEnabled = launchSettingsState.settings.stickyKeyboardCtrlEnabled,
+                        stickyFnEnabled = launchSettingsState.settings.stickyKeyboardFnEnabled,
+                        onAtariPressed = {
+                            inputControlsViewModel.onKeyPressed(
+                                AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                            )
+                        },
+                        onAtariReleased = {
+                            inputControlsViewModel.onKeyReleased(
+                                AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ATARI),
+                            )
+                        },
+                        onImeTextChanged = inputControlsViewModel::onImeTextChanged,
+                        onImeEnterPressed = inputControlsViewModel::onImeEnterPressed,
+                        keyboardPanelHeight = wideKeyboardPanelHeight,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
+                } else if (useWideJoystickLayout) {
                     LandscapeJoystickSessionLayout(
                         sessionRepository = sessionRepository,
                         emulatorSettings = launchSettingsState.settings,
@@ -2376,6 +2508,382 @@ private fun LandscapeFullscreenSessionLayout(
 }
 
 @Composable
+private fun SquareFoldableToolbarRow(
+    onSwapFujiNetDisks: () -> Unit,
+    onToggleInputMode: () -> Unit,
+    toggleInputIconResId: Int,
+    toggleInputDescription: String,
+    onToggleInputLongPress: () -> Unit,
+    onPauseTogglePressed: () -> Unit,
+    pauseEnabled: Boolean,
+    pauseIconResId: Int,
+    pauseDescription: String,
+    onResetPressed: () -> Unit,
+    onSettingsPressed: () -> Unit,
+    onFunctionKeyPressed: (AtariKeyMapping) -> Unit,
+    onFunctionKeyReleased: (AtariKeyMapping) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val topButtonWidth = 40.dp
+    val escMapping = remember { AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_ESCAPE) }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HoldableCompactTextButton(
+            label = "ESC",
+            onPressed = { onFunctionKeyPressed(escMapping) },
+            onReleased = { onFunctionKeyReleased(escMapping) },
+            modifier = Modifier.width(topButtonWidth),
+        )
+        CompactIconButton(
+            iconResId = R.drawable.ic_disk_swap,
+            contentDescription = "Swap FujiNet disks",
+            modifier = Modifier.width(topButtonWidth),
+            onClick = onSwapFujiNetDisks,
+        )
+        CompactIconButton(
+            iconResId = toggleInputIconResId,
+            contentDescription = toggleInputDescription,
+            modifier = Modifier
+                .width(topButtonWidth)
+                .testTag("square-toggle-input-button"),
+            onClick = onToggleInputMode,
+            onLongClick = onToggleInputLongPress,
+            longPressTimeoutMillis = InputPanelToggleLongPressTimeoutMillis,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        CompactControlButton(
+            label = "",
+            modifier = Modifier.width(topButtonWidth),
+            onClick = onPauseTogglePressed,
+            enabled = pauseEnabled,
+            iconResId = pauseIconResId,
+            contentDescription = pauseDescription,
+        )
+        CompactIconButton(
+            iconResId = R.drawable.ic_reset,
+            contentDescription = "Reset emulator",
+            modifier = Modifier.width(topButtonWidth),
+            onClick = onResetPressed,
+        )
+        CompactIconButton(
+            iconResId = R.drawable.ic_settings_gear,
+            contentDescription = "Settings",
+            modifier = Modifier.width(topButtonWidth),
+            onClick = onSettingsPressed,
+        )
+    }
+}
+
+@Composable
+private fun SquareFoldableJoystickSessionLayout(
+    sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
+    scaleMode: ScaleMode,
+    scanlinesEnabled: Boolean,
+    keepScreenOn: Boolean,
+    screenWidth: androidx.compose.ui.unit.Dp,
+    screenHeight: androidx.compose.ui.unit.Dp,
+    onSwapFujiNetDisks: () -> Unit,
+    onToggleInputMode: () -> Unit,
+    toggleInputIconResId: Int,
+    toggleInputDescription: String,
+    onPauseTogglePressed: () -> Unit,
+    pauseEnabled: Boolean,
+    pauseIconResId: Int,
+    pauseDescription: String,
+    onResetPressed: () -> Unit,
+    onSettingsPressed: () -> Unit,
+    onPortStatusPressed: (JoystickPort) -> Unit,
+    onJoystickMoved: (Float, Float) -> Unit,
+    onJoystickReleased: () -> Unit,
+    onFirePressed: () -> Unit,
+    onFireReleased: () -> Unit,
+    onKoalaRightTriggerPressed: () -> Unit,
+    onKoalaRightTriggerReleased: () -> Unit,
+    paddleActive: Boolean,
+    koalaActive: Boolean,
+    paddlePosition: Float,
+    onPaddlePositionChanged: (Float) -> Unit,
+    onToggleInputLongPress: () -> Unit,
+    onFunctionKeyPressed: (AtariKeyMapping) -> Unit,
+    onFunctionKeyReleased: (AtariKeyMapping) -> Unit,
+    joystickInputStyle: JoystickInputStyle,
+    joystickHapticsEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val koalaShortcutKey = emulatorSettings.koalaPadShortcutKey
+    val koalaShortcutMapping = remember(koalaShortcutKey) {
+        AtariKeyMapping(aKeyCode = koalaShortcutKey.toAKeyCode())
+    }
+    val controlBandHeight = (screenHeight * 0.32f).coerceIn(220.dp, 320.dp)
+    val controlBoxSize = minOf(controlBandHeight * 0.92f, screenWidth * 0.34f, 280.dp)
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SquareFoldableToolbarRow(
+            onSwapFujiNetDisks = onSwapFujiNetDisks,
+            onToggleInputMode = onToggleInputMode,
+            toggleInputIconResId = toggleInputIconResId,
+            toggleInputDescription = toggleInputDescription,
+            onToggleInputLongPress = onToggleInputLongPress,
+            onPauseTogglePressed = onPauseTogglePressed,
+            pauseEnabled = pauseEnabled,
+            pauseIconResId = pauseIconResId,
+            pauseDescription = pauseDescription,
+            onResetPressed = onResetPressed,
+            onSettingsPressed = onSettingsPressed,
+            onFunctionKeyPressed = onFunctionKeyPressed,
+            onFunctionKeyReleased = onFunctionKeyReleased,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val emulatorWidth = (maxHeight * EmulatorDisplayAspectRatio).coerceAtMost(maxWidth)
+                PasteEnabledEmulatorRenderHost(
+                    sessionRepository = sessionRepository,
+                    emulatorSettings = emulatorSettings,
+                    scaleMode = scaleMode,
+                    scanlinesEnabled = scanlinesEnabled,
+                    keepScreenOn = keepScreenOn,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .width(emulatorWidth)
+                        .fillMaxHeight()
+                        .testTag("square-emulator"),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(controlBandHeight)
+                .testTag("square-control-band"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(controlBoxSize),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (paddleActive) {
+                    PaddleSliderControl(
+                        position = paddlePosition,
+                        onPositionChanged = onPaddlePositionChanged,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(70.dp),
+                    )
+                } else if (koalaActive) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            FireButtonControl(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.7f)
+                                    .aspectRatio(1f),
+                                onFirePressed = onKoalaRightTriggerPressed,
+                                onFireReleased = onKoalaRightTriggerReleased,
+                                hapticsEnabled = joystickHapticsEnabled,
+                            )
+                        }
+                        HoldableCompactTextButton(
+                            label = koalaShortcutKey.toLabel(),
+                            onPressed = { onFunctionKeyPressed(koalaShortcutMapping) },
+                            onReleased = { onFunctionKeyReleased(koalaShortcutMapping) },
+                            modifier = Modifier.fillMaxWidth(0.7f),
+                        )
+                    }
+                } else when (joystickInputStyle) {
+                    JoystickInputStyle.STICK_8_WAY -> {
+                        JoystickPadControl(
+                            modifier = Modifier.fillMaxSize(),
+                            onJoystickMoved = onJoystickMoved,
+                            onJoystickReleased = onJoystickReleased,
+                            hapticsEnabled = joystickHapticsEnabled,
+                        )
+                    }
+
+                    JoystickInputStyle.DPAD_4_WAY -> {
+                        DpadControl(
+                            modifier = Modifier.fillMaxSize(),
+                            onJoystickMoved = onJoystickMoved,
+                            onJoystickReleased = onJoystickReleased,
+                            hapticsEnabled = joystickHapticsEnabled,
+                        )
+                    }
+                }
+            }
+            AtariFunctionBar(
+                keys = squareFoldableFunctionKeys,
+                onKeyPressed = onFunctionKeyPressed,
+                onKeyReleased = onFunctionKeyReleased,
+                hapticsEnabled = joystickHapticsEnabled,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            )
+            Box(
+                modifier = Modifier.size(controlBoxSize),
+                contentAlignment = Alignment.Center,
+            ) {
+                FireButtonControl(
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .aspectRatio(1f),
+                    onFirePressed = onFirePressed,
+                    onFireReleased = onFireReleased,
+                    hapticsEnabled = joystickHapticsEnabled,
+                )
+            }
+        }
+        PortStatusStrip(
+            settings = emulatorSettings,
+            compact = false,
+            onPortStatusPressed = onPortStatusPressed,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("square-port-status-strip"),
+        )
+    }
+}
+
+@Composable
+private fun SquareFoldableKeyboardSessionLayout(
+    sessionRepository: SessionRepository,
+    emulatorSettings: EmulatorSettings,
+    scaleMode: ScaleMode,
+    scanlinesEnabled: Boolean,
+    keepScreenOn: Boolean,
+    screenWidth: androidx.compose.ui.unit.Dp,
+    screenHeight: androidx.compose.ui.unit.Dp,
+    onSwapFujiNetDisks: () -> Unit,
+    onToggleInputMode: () -> Unit,
+    toggleInputIconResId: Int,
+    toggleInputDescription: String,
+    onPauseTogglePressed: () -> Unit,
+    pauseEnabled: Boolean,
+    pauseIconResId: Int,
+    pauseDescription: String,
+    onResetPressed: () -> Unit,
+    onSettingsPressed: () -> Unit,
+    useInternalKeyboard: Boolean,
+    onKeyPressed: (AtariKeyMapping) -> Unit,
+    onKeyReleased: (AtariKeyMapping) -> Unit,
+    onToggleInputLongPress: () -> Unit,
+    keyboardResetTrigger: Int,
+    keyboardHapticsEnabled: Boolean,
+    stickyShiftEnabled: Boolean,
+    stickyCtrlEnabled: Boolean,
+    stickyFnEnabled: Boolean,
+    onAtariPressed: () -> Unit,
+    onAtariReleased: () -> Unit,
+    onImeTextChanged: (String, String) -> Unit,
+    onImeEnterPressed: () -> Unit,
+    keyboardPanelHeight: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SquareFoldableToolbarRow(
+            onSwapFujiNetDisks = onSwapFujiNetDisks,
+            onToggleInputMode = onToggleInputMode,
+            toggleInputIconResId = toggleInputIconResId,
+            toggleInputDescription = toggleInputDescription,
+            onToggleInputLongPress = onToggleInputLongPress,
+            onPauseTogglePressed = onPauseTogglePressed,
+            pauseEnabled = pauseEnabled,
+            pauseIconResId = pauseIconResId,
+            pauseDescription = pauseDescription,
+            onResetPressed = onResetPressed,
+            onSettingsPressed = onSettingsPressed,
+            onFunctionKeyPressed = onKeyPressed,
+            onFunctionKeyReleased = onKeyReleased,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val emulatorWidth = (maxHeight * EmulatorDisplayAspectRatio).coerceAtMost(maxWidth)
+                PasteEnabledEmulatorRenderHost(
+                    sessionRepository = sessionRepository,
+                    emulatorSettings = emulatorSettings,
+                    scaleMode = scaleMode,
+                    scanlinesEnabled = scanlinesEnabled,
+                    keepScreenOn = keepScreenOn,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .width(emulatorWidth)
+                        .fillMaxHeight()
+                        .testTag("square-emulator"),
+                )
+            }
+        }
+        if (useInternalKeyboard) {
+            AtariKeyboard(
+                onKeyPressed = onKeyPressed,
+                onKeyReleased = onKeyReleased,
+                onToggleInputMode = onToggleInputMode,
+                onToggleInputLongPress = onToggleInputLongPress,
+                resetTrigger = keyboardResetTrigger,
+                hapticsEnabled = keyboardHapticsEnabled,
+                stickyShiftEnabled = stickyShiftEnabled,
+                stickyCtrlEnabled = stickyCtrlEnabled,
+                stickyFnEnabled = stickyFnEnabled,
+                toggleIconResId = toggleInputIconResId,
+                toggleIconDescription = toggleInputDescription,
+                compact = true,
+                dense = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(keyboardPanelHeight)
+                    .testTag("square-keyboard"),
+            )
+        } else {
+            AndroidKeyboardPanel(
+                onToggleInputMode = onToggleInputMode,
+                onToggleInputLongPress = onToggleInputLongPress,
+                toggleIconResId = toggleInputIconResId,
+                toggleIconDescription = toggleInputDescription,
+                onAtariPressed = onAtariPressed,
+                onAtariReleased = onAtariReleased,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(keyboardPanelHeight)
+                    .testTag("square-keyboard"),
+                imeProxy = {
+                    AndroidImeProxy(
+                        active = true,
+                        onTextChanged = onImeTextChanged,
+                        onEnterPressed = onImeEnterPressed,
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun CompactControlButton(
     label: String,
     onClick: () -> Unit,
@@ -2638,15 +3146,21 @@ private fun PortStatusBadge(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
+            AutoSizeText(
                 text = "P${port.index + 1}",
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                textAlign = TextAlign.Center,
             )
-            Text(
+            AutoSizeText(
                 text = device.toPortCode(controllerName),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -4667,6 +5181,13 @@ private val landscapeLeftFunctionKeys = listOf(
 )
 
 private val landscapeRightFunctionKeys = listOf(
+    AtariFunctionKeySpec("SELECT", AtariKeyMapping(consoleKey = AtariConsoleKey.SELECT)),
+    AtariFunctionKeySpec("OPTION", AtariKeyMapping(consoleKey = AtariConsoleKey.OPTION)),
+)
+
+private val squareFoldableFunctionKeys = listOf(
+    AtariFunctionKeySpec("HELP", AtariKeyMapping(aKeyCode = AtariKeyCode.AKEY_HELP)),
+    AtariFunctionKeySpec("START", AtariKeyMapping(consoleKey = AtariConsoleKey.START)),
     AtariFunctionKeySpec("SELECT", AtariKeyMapping(consoleKey = AtariConsoleKey.SELECT)),
     AtariFunctionKeySpec("OPTION", AtariKeyMapping(consoleKey = AtariConsoleKey.OPTION)),
 )

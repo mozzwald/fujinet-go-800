@@ -22,10 +22,11 @@ class EmulatorRuntimeLayoutTest {
     }
 
     @Test
-    fun expandedNearSquarePortraitUsesWideLayout() {
+    fun expandedNearSquarePortraitUsesSquareFoldableLayout() {
         val layout = calculate(width = 840f, height = 900f)
 
         assertTrue(layout.isWide)
+        assertEquals(EmulatorRuntimePlacement.SquareFoldable, layout.placement)
     }
 
     @Test
@@ -41,6 +42,7 @@ class EmulatorRuntimeLayoutTest {
 
         assertFalse(below.isWide)
         assertTrue(atThreshold.isWide)
+        assertEquals(EmulatorRuntimePlacement.SquareFoldable, atThreshold.placement)
     }
 
     @Test
@@ -57,6 +59,15 @@ class EmulatorRuntimeLayoutTest {
 
         assertFalse(justBelow.isWide)
         assertTrue(justAbove.isWide)
+        assertEquals(EmulatorRuntimePlacement.SquareFoldable, justAbove.placement)
+    }
+
+    @Test
+    fun regularLandscapePhoneIsNeverClassifiedAsSquareFoldable() {
+        val layout = calculate(width = 891f, height = 411f)
+
+        assertEquals(EmulatorRuntimePlacement.Wide, layout.placement)
+        assertFalse(layout.isSquareFoldable)
     }
 
     @Test
@@ -79,7 +90,20 @@ class EmulatorRuntimeLayoutTest {
     }
 
     @Test
-    fun largeNearSquareKeyboardUsesConcurrentTouchControls() {
+    fun largeLandscapeKeyboardUsesConcurrentTouchControls() {
+        val layout = calculate(
+            width = 900f,
+            height = 500f,
+            keyboardSelected = true,
+            keyboardPanelHeight = 100f,
+        )
+
+        assertEquals(EmulatorRuntimePlacement.Wide, layout.placement)
+        assertTrue(layout.showsConcurrentTouchControls)
+    }
+
+    @Test
+    fun squareFoldableKeyboardNeverUsesConcurrentTouchControls() {
         val layout = calculate(
             width = 840f,
             height = 900f,
@@ -87,22 +111,23 @@ class EmulatorRuntimeLayoutTest {
             keyboardPanelHeight = 300f,
         )
 
-        assertTrue(layout.showsConcurrentTouchControls)
+        assertEquals(EmulatorRuntimePlacement.SquareFoldable, layout.placement)
+        assertFalse(layout.showsConcurrentTouchControls)
     }
 
     @Test
     fun combinedControlsRequireMinimumWidth() {
         val below = calculate(
             width = MinimumCombinedControlsWidthDp - 1f,
-            height = 800f,
+            height = 500f,
             keyboardSelected = true,
-            keyboardPanelHeight = 300f,
+            keyboardPanelHeight = 100f,
         )
         val atThreshold = calculate(
             width = MinimumCombinedControlsWidthDp,
-            height = 800f,
+            height = 500f,
             keyboardSelected = true,
-            keyboardPanelHeight = 300f,
+            keyboardPanelHeight = 100f,
         )
 
         assertFalse(below.showsConcurrentTouchControls)

@@ -3,6 +3,7 @@ package com.mantismoonlabs.fujinetgo800.ui
 internal enum class EmulatorRuntimePlacement {
     Stacked,
     Wide,
+    SquareFoldable,
 }
 
 internal enum class EmulatorWideKeyboardRails {
@@ -15,7 +16,10 @@ internal data class EmulatorRuntimeLayout(
     val keyboardRails: EmulatorWideKeyboardRails,
 ) {
     val isWide: Boolean
-        get() = placement == EmulatorRuntimePlacement.Wide
+        get() = placement != EmulatorRuntimePlacement.Stacked
+
+    val isSquareFoldable: Boolean
+        get() = placement == EmulatorRuntimePlacement.SquareFoldable
 
     val showsConcurrentTouchControls: Boolean
         get() = keyboardRails == EmulatorWideKeyboardRails.ConcurrentTouchControls
@@ -36,18 +40,22 @@ internal fun calculateEmulatorRuntimeLayout(
     val isGeometricallyLandscape = width > height
     val isExpandedNearSquare =
         width >= MinimumWideRuntimeWidthDp && width / height >= MinimumExpandedWideAspectRatio
-    val isWide = isGeometricallyLandscape || isExpandedNearSquare
+    val placement = when {
+        isGeometricallyLandscape -> EmulatorRuntimePlacement.Wide
+        isExpandedNearSquare -> EmulatorRuntimePlacement.SquareFoldable
+        else -> EmulatorRuntimePlacement.Stacked
+    }
     val topRowHeight = (
         height - metrics.keyboardPanelHeightDp.coerceAtLeast(0f) - WideKeyboardVerticalSpacingDp
         ).coerceAtLeast(0f)
     val supportsConcurrentControls =
-        isWide &&
+        placement == EmulatorRuntimePlacement.Wide &&
             metrics.keyboardSelected &&
             width >= MinimumCombinedControlsWidthDp &&
             topRowHeight >= MinimumCombinedControlsTopRowHeightDp
 
     return EmulatorRuntimeLayout(
-        placement = if (isWide) EmulatorRuntimePlacement.Wide else EmulatorRuntimePlacement.Stacked,
+        placement = placement,
         keyboardRails = if (supportsConcurrentControls) {
             EmulatorWideKeyboardRails.ConcurrentTouchControls
         } else {
