@@ -8,6 +8,21 @@ import java.util.Properties
 
 val pinnedAndroidNdkVersion = "30.0.14904198"
 
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val localFujiNetSourceDirectory = localProperties
+    .getProperty("fujinet.source.dir")
+    ?.takeIf { it.isNotBlank() }
+    ?.let(rootProject::file)
+val localFujiNetVenvDirectory = localProperties
+    .getProperty("fujinet.venv.dir")
+    ?.takeIf { it.isNotBlank() }
+    ?.let(rootProject::file)
+
 val keystoreProperties = Properties().apply {
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     if (keystorePropertiesFile.exists()) {
@@ -16,13 +31,22 @@ val keystoreProperties = Properties().apply {
 }
 
 fun readFujiNetRuntimeVersion(): String {
-    val versionHeader = rootProject.file("tools/fujinet/work/fujinet-firmware/include/version.h")
-    if (!versionHeader.isFile) {
-        return "fujinet-runtime-v1"
+    val commitDate = runCatching {
+        ProcessBuilder("git", "log", "-1", "--format=%cs")
+            .directory(rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+            .let { process ->
+                val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+                check(process.waitFor() == 0 && output.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+                    "Unable to determine the latest Git commit date"
+                }
+                output
+            }
+    }.getOrElse {
+        "unknown"
     }
-    val match = Regex("""#define\s+FN_VERSION_FULL\s+"([^"]+)"""")
-        .find(versionHeader.readText())
-    return match?.groupValues?.get(1) ?: "fujinet-runtime-v1"
+    return "v1.6.2_$commitDate"
 }
 
 val fujiNetRuntimeVersion = readFujiNetRuntimeVersion()
@@ -71,6 +95,9 @@ val prepareFujiNetRuntime by tasks.registering(Exec::class) {
     inputs.file(rootProject.file("tools/fujinet/build-fujinet.sh"))
     inputs.dir(rootProject.file("tools/fujinet/patches"))
     inputs.dir(rootProject.file("tools/fujinet/support"))
+    localFujiNetSourceDirectory?.let {
+        inputs.property("fujinetSourceDir", it.absolutePath)
+    }
     outputs.dir(project.file("src/main/assets-generated/fujinet"))
     outputs.dir(project.file("src/main/jniLibs-generated"))
     doFirst {
@@ -80,6 +107,18 @@ val prepareFujiNetRuntime by tasks.registering(Exec::class) {
         }
         environment("ANDROID_NDK_HOME", pinnedNdkDirectory.absolutePath)
         environment("ANDROID_NDK_ROOT", pinnedNdkDirectory.absolutePath)
+        localFujiNetSourceDirectory?.let {
+            check(it.resolve(".git").isDirectory) {
+                "fujinet.source.dir is not a Git checkout: $it"
+            }
+            environment("FUJINET_SOURCE_DIR", it.absolutePath)
+        }
+        localFujiNetVenvDirectory?.let {
+            check(it.resolve("bin/pio").isFile) {
+                "fujinet.venv.dir does not contain bin/pio: $it"
+            }
+            environment("VENV_ROOT", it.absolutePath)
+        }
     }
 }
 

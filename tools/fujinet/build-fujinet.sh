@@ -11,9 +11,10 @@ GENERATED_ASSET_ROOT="${PROJECT_ROOT}/app/src/main/assets-generated/fujinet"
 GENERATED_JNI_ROOT="${PROJECT_ROOT}/app/src/main/jniLibs-generated"
 
 UPSTREAM_URL="https://github.com/mozzwald/fujinet-firmware"
-UPSTREAM_BRANCH="android"
-UPSTREAM_COMMIT="1efc3198125e736002c1c2fad499c9a95c6979e6"
+UPSTREAM_BRANCH="android-v1.6.x"
+UPSTREAM_COMMIT="7c2315cb1bb3fd5c38c331bd7b6a2176ef60f06e"
 ARCHIVE_PATH="${WORK_ROOT}/fujinet-firmware-${UPSTREAM_COMMIT}.tar.gz"
+FUJINET_SOURCE_DIR="${FUJINET_SOURCE_DIR:-}"
 
 MBEDTLS_URL="https://github.com/Mbed-TLS/mbedtls.git"
 MBEDTLS_TAG="mbedtls-3.6.5"
@@ -129,6 +130,20 @@ download_archive() {
 }
 
 prepare_fresh_clone() {
+    if [[ -n "${FUJINET_SOURCE_DIR}" ]]; then
+        [[ -d "${FUJINET_SOURCE_DIR}/.git" ]] \
+            || fail "FUJINET_SOURCE_DIR is not a Git checkout: ${FUJINET_SOURCE_DIR}"
+        local local_commit
+        local_commit=$(git -C "${FUJINET_SOURCE_DIR}" rev-parse "${UPSTREAM_COMMIT}^{commit}")
+        [[ "${local_commit}" == "${UPSTREAM_COMMIT}" ]] \
+            || fail "Local FujiNet checkout resolved to ${local_commit}, expected ${UPSTREAM_COMMIT}"
+
+        rm -rf "${CLONE_DIR}"
+        mkdir -p "${CLONE_DIR}"
+        git -C "${FUJINET_SOURCE_DIR}" archive "${UPSTREAM_COMMIT}" | tar -x -C "${CLONE_DIR}"
+        return
+    fi
+
     local branch_ref
     branch_ref=$(git ls-remote --heads "${UPSTREAM_URL}" "${UPSTREAM_BRANCH}" | awk 'NR == 1 { print $1 }')
     [[ -n "${branch_ref}" ]] || fail "Unable to resolve upstream branch ${UPSTREAM_BRANCH}"
@@ -568,6 +583,8 @@ build_fujinet_for_abi() {
     export ANDROID_NDK_HOME="${NDK_DIR}"
     export ANDROID_ABI="${abi}"
     export ANDROID_PLATFORM="${ANDROID_PLATFORM:-android-26}"
+    export FUJINET_ANDROID_ENTRY="${SUPPORT_DIR}/fujinet_android_entry.cpp"
+    export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-6}"
     ANDROID_ABI_VALUE="${abi}"
 
     build_mbedtls
@@ -618,8 +635,6 @@ mkdir -p "${WORK_ROOT}"
 prepare_fresh_clone
 
 rm -rf "${CLONE_DIR}/build"
-apply_android_patches
-apply_local_patch_files
 
 rm -rf "${GENERATED_ASSET_ROOT}" "${GENERATED_JNI_ROOT}"
 mkdir -p "${GENERATED_JNI_ROOT}"

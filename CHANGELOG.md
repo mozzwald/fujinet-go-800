@@ -9,6 +9,7 @@
 * Allow portrait joystick and keyboard drawers to expand to comfortable sizes while preserving the emulator view
 * Fix Samsung One UI on-screen navigation buttons reappearing and overlapping the touch controls in portrait and landscape
 * Add a split on-screen keyboard for landscape mode (now the default), placing keys on either side of the emulator so it can use the full screen height; the previous bottom layout is still available in Settings
+* Change reboot icon to power button icon
 
 # v1.2.1
 * Fix external controller source detection
